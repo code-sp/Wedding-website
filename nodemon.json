@@ -1,0 +1,4 @@
+{
+  "ignore": ["data/*", "dist/*", "node_modules/*", "*.log", "*.txt"],
+  "watch": ["server/*", "package.json"]
+}
