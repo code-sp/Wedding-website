@@ -34,7 +34,8 @@ const secureHeaders = (init: RequestInit, path: string) => {
   const headers = new Headers(init.headers);
   headers.set('Content-Type', 'application/json');
 
-  if (isMutation(init.method) && path !== '/session/login') {
+  const preSessionMutation = path === '/session/login' || path === '/session/exchange';
+  if (isMutation(init.method) && !preSessionMutation) {
     const csrfToken = getCookie('csrf_token');
     if (csrfToken) headers.set('X-CSRF-Token', decodeURIComponent(csrfToken));
   }
@@ -66,7 +67,7 @@ async function request<T>(path: string, init: RequestInit = {}, allowRefresh = t
     headers: secureHeaders(init, path)
   });
 
-  if (response.status === 401 && allowRefresh && path !== '/session/login' && path !== '/session/refresh') {
+  if (response.status === 401 && allowRefresh && path !== '/session/login' && path !== '/session/exchange' && path !== '/session/refresh') {
     const refreshed = await refreshAccessSession();
     if (refreshed) return request<T>(path, init, false);
   }
@@ -84,6 +85,12 @@ export const api = {
     request<{ user: SessionUser }>('/session/login', {
       method: 'POST',
       body: JSON.stringify({ code, clientId })
+    }, false),
+
+  exchangeInvitation: (token: string) =>
+    request<{ user: SessionUser }>('/session/exchange', {
+      method: 'POST',
+      body: JSON.stringify({ token })
     }, false),
 
   session: () => request<{ user: SessionUser }>('/session'),
