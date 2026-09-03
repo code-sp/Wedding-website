@@ -1,56 +1,66 @@
 import mongoose from 'mongoose';
 
-// User Schema
+const GuestProfileSchema = new mongoose.Schema({
+  fullName: { type: String, trim: true },
+  relationToCouple: { type: String, trim: true },
+  dietaryPreference: {
+    type: String,
+    enum: ['vegetarian', 'vegan', 'jain', 'non-vegetarian', 'other', ''],
+    default: ''
+  },
+  phone: { type: String, trim: true }
+}, { _id: false });
+
 const UserSchema = new mongoose.Schema({
-    _id: String, // Custom ID to match 'admin', 'user_01'
-    role: { type: String, default: 'user' }, // admin, client, user
-    clientId: { type: String, default: 'default_client' }, // "default_client" or "all"
-    name: String,
-    access_code: { type: String, unique: true },
-    old_access_code: { type: String, default: null },
-    is_registered: { type: Boolean, default: false },
-    rsvp_data: { type: Object, default: null } // JSON blob equivalent
-}, { _id: false }); // We handle _id manually to match existing strings
+  _id: String,
+  role: { type: String, enum: ['admin', 'client', 'user'], default: 'user' },
+  clientId: { type: String, default: 'default_client', index: true },
+  name: { type: String, trim: true },
+  access_code: { type: String, unique: true, sparse: true },
+  old_access_code: { type: String, default: null },
+  is_registered: { type: Boolean, default: false },
+  profile_complete: { type: Boolean, default: false },
+  profile: { type: GuestProfileSchema, default: () => ({}) },
+  rsvp_data: { type: Object, default: null }
+}, { _id: false, timestamps: true });
 
-// RSVP Schema
 const RSVPSchema = new mongoose.Schema({
-    _id: String, // "rsvp_timestamp"
-    userId: { type: String, ref: 'User' },
-    clientId: { type: String, required: true, default: 'default_client' }, // Direct link to client
-    data: Object, // The full form data
-    timestamp: { type: Date, default: Date.now }
+  _id: String,
+  userId: { type: String, ref: 'User', required: true, index: true },
+  clientId: { type: String, required: true, default: 'default_client', index: true },
+  data: Object,
+  timestamp: { type: Date, default: Date.now }
 }, { _id: false });
 
-// Client Schema (Multi-Portals)
+RSVPSchema.index({ userId: 1, clientId: 1 }, { unique: true });
+
 const ClientSchema = new mongoose.Schema({
-    _id: { type: String, required: true },
-    name: { type: String, required: true },
-    occasion: { type: String, default: 'wedding' },
-    brideName: { type: String },
-    groomName: { type: String },
-    personName: { type: String },
-    contactDetail: { type: String },
-    address: { type: String },
-    status: { type: String, default: 'active' },
-    createdAt: { type: Date, default: Date.now }
+  _id: { type: String, required: true },
+  name: { type: String, required: true },
+  occasion: { type: String, default: 'wedding' },
+  brideName: String,
+  groomName: String,
+  personName: String,
+  contactDetail: String,
+  address: String,
+  status: { type: String, default: 'active' },
+  createdAt: { type: Date, default: Date.now }
 }, { _id: false });
 
-// Content Schema (Multi-Tenant Key-Value Store)
 const ContentSchema = new mongoose.Schema({
-    key: { type: String, required: true }, // e.g., 'home', 'events'
-    clientId: { type: String, required: true, default: 'default_client' },
-    value: { type: mongoose.Schema.Types.Mixed, required: true }
+  key: { type: String, required: true },
+  clientId: { type: String, required: true, default: 'default_client' },
+  value: { type: mongoose.Schema.Types.Mixed, required: true }
 });
-
-// Compound index for multi-tenancy
 ContentSchema.index({ key: 1, clientId: 1 }, { unique: true });
 
 const AllowedGuestSchema = new mongoose.Schema({
-    clientId: { type: String, required: true, default: 'default_client' },
-    name: { type: String, required: true },
-    isClaimed: { type: Boolean, default: false },
-    claimedBy: { type: String, default: null } // User ID
+  clientId: { type: String, required: true, default: 'default_client', index: true },
+  name: { type: String, required: true, trim: true },
+  isClaimed: { type: Boolean, default: false },
+  claimedBy: { type: String, default: null }
 });
+AllowedGuestSchema.index({ clientId: 1, name: 1 });
 
 export const User = mongoose.model('User', UserSchema);
 export const RSVP = mongoose.model('RSVP', RSVPSchema);
