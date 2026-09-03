@@ -14,13 +14,14 @@ const cookieBase = () => ({
   path: '/'
 });
 
-export const issueAccessToken = (res, user) => {
+export const issueAccessToken = (res, user, sessionId) => {
   const profileComplete = Boolean(user.profile_complete ?? user.is_registered);
   const token = jwt.sign(
     {
       role: user.role,
       clientId: user.clientId || 'default_client',
-      profileComplete
+      profileComplete,
+      sid: sessionId
     },
     env.sessionSecret,
     {
@@ -42,7 +43,7 @@ export const createRefreshSession = async (res, user, userAgent = '') => {
   const familyId = randomId('family');
   const expiresAt = new Date(Date.now() + env.refreshTokenTtlDays * 24 * 60 * 60 * 1000);
 
-  await Session.create({
+  const session = await Session.create({
     _id: randomId('session'),
     userId: user._id,
     tokenHash: hashToken(rawToken),
@@ -55,6 +56,8 @@ export const createRefreshSession = async (res, user, userAgent = '') => {
     ...cookieBase(),
     maxAge: env.refreshTokenTtlDays * 24 * 60 * 60 * 1000
   });
+
+  return session;
 };
 
 export const rotateRefreshSession = async (res, rawToken, userAgent = '') => {
@@ -62,7 +65,15 @@ export const rotateRefreshSession = async (res, rawToken, userAgent = '') => {
 
   const tokenHash = hashToken(rawToken);
   const current = await Session.findOne({ tokenHash });
-  if (!current || current.revokedAt || current.expiresAt <= new Date()) return null;
+  if (!current || current.expiresAt <= new Date()) return null;
+
+  if (current.revokedAt) {
+    await Session.updateMany(
+      { familyId: current.familyId, revokedAt: null },
+      { revokedAt: new Date() }
+    );
+    return null;
+  }
 
   const replacementToken = randomToken();
   const replacement = await Session.create({
@@ -91,6 +102,14 @@ export const revokeRefreshSession = async (rawToken) => {
   if (!rawToken) return;
   await Session.updateOne(
     { tokenHash: hashToken(rawToken), revokedAt: null },
+    { revokedAt: new Date(), lastUsedAt: new Date() }
+  );
+};
+
+export const revokeSessionById = async (sessionId) => {
+  if (!sessionId) return;
+  await Session.updateOne(
+    { _id: sessionId, revokedAt: null },
     { revokedAt: new Date(), lastUsedAt: new Date() }
   );
 };
