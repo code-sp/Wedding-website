@@ -62,13 +62,20 @@
   background: rgba(255,255,255,.82);
   color: var(--color-text-primary);
   font-size: max(1rem, 16px);
+  transition: border-color var(--motion-fast) ease, box-shadow var(--motion-fast) ease, opacity var(--motion-fast) ease;
 }
 .input:focus,
 .select:focus { border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-focus-ring); }
+.input:disabled,
+.select:disabled { opacity: .68; cursor: progress; background: rgba(248,243,235,.8); }
 
 .submit {
   width: 100%;
   min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .55rem;
   padding: .8rem 1rem;
   border: 0;
   border-radius: var(--radius-pill);
@@ -81,7 +88,7 @@
 .submit:hover { transform: translateY(-1px); }
 .submit:active { transform: translateY(1px); }
 .submit:focus-visible { outline: 3px solid var(--color-focus-ring); outline-offset: 2px; }
-.submit:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+.submit:disabled { opacity: .62; cursor: progress; transform: none; }
 
 .error {
   max-width: 100%;
@@ -120,5 +127,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .submit { transition-duration: .001ms; }
+  .submit,
+  .input,
+  .select { transition-duration: .001ms; }
 }
