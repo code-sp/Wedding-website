@@ -1,4 +1,4 @@
-import { User } from '../models.js';
+import { User, AllowedGuest } from '../models.js';
 
 export const scopeTenant = (req, _res, next) => {
   if (req.auth?.role !== 'admin') {
@@ -15,7 +15,6 @@ export const scopeTenant = (req, _res, next) => {
 
 export const requireTargetUserInTenant = async (req, res, next) => {
   if (req.auth?.role === 'admin') return next();
-
   const target = await User.findById(req.params.id).select('_id clientId');
   if (!target) return res.status(404).json({ error: 'User not found' });
   if (target.clientId !== req.auth?.clientId) {
@@ -24,9 +23,17 @@ export const requireTargetUserInTenant = async (req, res, next) => {
   next();
 };
 
-export const forceSelfUserId = (req, _res, next) => {
-  if (req.auth?.role !== 'admin' && req.auth?.userId) {
-    req.body.userId = req.auth.userId;
+export const requireTargetGuestInTenant = async (req, res, next) => {
+  if (req.auth?.role === 'admin') return next();
+  const target = await AllowedGuest.findById(req.params.id).select('_id clientId');
+  if (!target) return res.status(404).json({ error: 'Guest not found' });
+  if (target.clientId !== req.auth?.clientId) {
+    return res.status(403).json({ error: 'Guest belongs to another wedding' });
   }
+  next();
+};
+
+export const forceSelfUserId = (req, _res, next) => {
+  if (req.auth?.role !== 'admin' && req.auth?.userId) req.body.userId = req.auth.userId;
   next();
 };
