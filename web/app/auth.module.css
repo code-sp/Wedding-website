@@ -1,0 +1,70 @@
+.page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background:
+    radial-gradient(circle at top left, rgba(199, 166, 106, .18), transparent 24rem),
+    linear-gradient(180deg, #fbf7f0, #f4ece2);
+}
+
+.panel {
+  width: min(100%, 34rem);
+  padding: clamp(1.25rem, 5vw, 2.5rem);
+  border-radius: 28px;
+  border: 1px solid rgba(90, 65, 70, .16);
+  background: rgba(255, 252, 246, .9);
+  box-shadow: 0 24px 70px rgba(54, 36, 42, .14);
+  backdrop-filter: blur(16px);
+}
+
+.eyebrow {
+  margin-bottom: .5rem;
+  color: #7a1f3d;
+  font-size: .75rem;
+  font-weight: 800;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 0 0 .75rem;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(2rem, 7vw, 3.5rem);
+  line-height: 1;
+  font-weight: 500;
+}
+
+.copy { color: #5f5256; line-height: 1.65; }
+.form { display: grid; gap: 1rem; margin-top: 1.5rem; }
+.field { display: grid; gap: .45rem; }
+.label { font-size: .86rem; font-weight: 700; color: #46393d; }
+.input, .select {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid rgba(90, 65, 70, .22);
+  border-radius: 14px;
+  padding: .8rem .9rem;
+  background: rgba(255,255,255,.75);
+  color: #241b1d;
+  outline: none;
+}
+.input:focus, .select:focus { border-color: #7a1f3d; box-shadow: 0 0 0 3px rgba(122,31,61,.1); }
+.submit {
+  min-height: 48px;
+  border: 0;
+  border-radius: 999px;
+  padding: .8rem 1rem;
+  background: linear-gradient(135deg, #7a1f3d, #5f1730);
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 150ms ease, opacity 150ms ease;
+}
+.submit:hover { transform: translateY(-1px); }
+.submit:active { transform: translateY(1px); }
+.submit:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+.error { color: #8f2929; background: rgba(164,58,58,.08); padding: .75rem; border-radius: 12px; }
+.progress { display: flex; gap: .4rem; margin: 1.25rem 0 0; }
+.progress span { height: 5px; flex: 1; border-radius: 999px; background: rgba(122,31,61,.15); }
+.progress span.active { background: #7a1f3d; }
