@@ -14,7 +14,25 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+let refreshPromise: Promise<boolean> | null = null;
+
+async function refreshAccessSession(): Promise<boolean> {
+  if (!refreshPromise) {
+    refreshPromise = fetch(`${API_BASE}/session/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' }
+    })
+      .then((response) => response.ok)
+      .catch(() => false)
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+}
+
+async function request<T>(path: string, init: RequestInit = {}, allowRefresh = true): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
     credentials: 'include',
@@ -23,6 +41,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       ...init.headers
     }
   });
+
+  if (response.status === 401 && allowRefresh && path !== '/session/login' && path !== '/session/refresh') {
+    const refreshed = await refreshAccessSession();
+    if (refreshed) return request<T>(path, init, false);
+  }
 
   if (response.status === 204) return undefined as T;
   const payload = await response.json().catch(() => ({}));
@@ -37,11 +60,13 @@ export const api = {
     request<{ user: SessionUser }>('/session/login', {
       method: 'POST',
       body: JSON.stringify({ code, clientId })
-    }),
+    }, false),
 
   session: () => request<{ user: SessionUser }>('/session'),
 
-  logout: () => request<void>('/session/logout', { method: 'POST' }),
+  refresh: () => request<{ user: SessionUser }>('/session/refresh', { method: 'POST' }, false),
+
+  logout: () => request<void>('/session/logout', { method: 'POST' }, false),
 
   profile: () => request<{ profile: Record<string, string>; isProfileComplete: boolean }>('/profile'),
 
