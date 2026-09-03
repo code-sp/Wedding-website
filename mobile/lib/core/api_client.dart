@@ -35,6 +35,27 @@ class WeddingApiClient {
           headers: const {'Content-Type': 'application/json'},
         )) {
     _dio.interceptors.add(CookieManager(_cookieJar));
+    _dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (options, handler) async {
+          final method = options.method.toUpperCase();
+          final isMutation = !const {'GET', 'HEAD', 'OPTIONS'}.contains(method);
+          final isLogin = options.path.endsWith('/session/login');
+
+          if (isMutation && !isLogin) {
+            final cookies = await _cookieJar.loadForRequest(options.uri);
+            for (final cookie in cookies) {
+              if (cookie.name == 'csrf_token') {
+                options.headers['X-CSRF-Token'] = cookie.value;
+                break;
+              }
+            }
+          }
+
+          handler.next(options);
+        },
+      ),
+    );
   }
 
   final Dio _dio;
@@ -52,6 +73,13 @@ class WeddingApiClient {
 
   Future<SessionUser> session() async {
     final response = await _dio.get<Map<String, dynamic>>('/session');
+    return SessionUser.fromJson(
+      Map<String, dynamic>.from(response.data!['user'] as Map),
+    );
+  }
+
+  Future<SessionUser> refresh() async {
+    final response = await _dio.post<Map<String, dynamic>>('/session/refresh');
     return SessionUser.fromJson(
       Map<String, dynamic>.from(response.data!['user'] as Map),
     );
