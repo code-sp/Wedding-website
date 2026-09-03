@@ -1,12 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
-
-export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
-  useEffect(() => {
-    console.error('Route error', error);
-  }, [error]);
-
+export default function GlobalError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return (
     <main className="route-error" role="alert">
       <section className="route-error-card surface-card" aria-labelledby="route-error-title">
