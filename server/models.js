@@ -24,6 +24,19 @@ const UserSchema = new mongoose.Schema({
   rsvp_data: { type: Object, default: null }
 }, { _id: false, timestamps: true });
 
+const SessionSchema = new mongoose.Schema({
+  _id: String,
+  userId: { type: String, ref: 'User', required: true, index: true },
+  tokenHash: { type: String, required: true, unique: true },
+  familyId: { type: String, required: true, index: true },
+  expiresAt: { type: Date, required: true, index: { expires: 0 } },
+  revokedAt: { type: Date, default: null },
+  rotatedAt: { type: Date, default: null },
+  createdAt: { type: Date, default: Date.now },
+  lastUsedAt: { type: Date, default: Date.now },
+  userAgent: { type: String, default: '' }
+}, { _id: false });
+
 const RSVPSchema = new mongoose.Schema({
   _id: String,
   userId: { type: String, ref: 'User', required: true, index: true },
@@ -31,7 +44,6 @@ const RSVPSchema = new mongoose.Schema({
   data: Object,
   timestamp: { type: Date, default: Date.now }
 }, { _id: false });
-
 RSVPSchema.index({ userId: 1, clientId: 1 }, { unique: true });
 
 const ClientSchema = new mongoose.Schema({
@@ -63,6 +75,7 @@ const AllowedGuestSchema = new mongoose.Schema({
 AllowedGuestSchema.index({ clientId: 1, name: 1 });
 
 export const User = mongoose.model('User', UserSchema);
+export const Session = mongoose.model('Session', SessionSchema);
 export const RSVP = mongoose.model('RSVP', RSVPSchema);
 export const Content = mongoose.model('Content', ContentSchema);
 export const AllowedGuest = mongoose.model('AllowedGuest', AllowedGuestSchema);
