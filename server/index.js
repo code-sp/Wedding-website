@@ -6,6 +6,7 @@ import connectDB from './config/db.js';
 import { env } from './config/env.js';
 import { User, Content } from './models.js';
 import * as defaults from './defaults.js';
+import { csrfProtection } from './middleware/csrf.js';
 
 import sessionRoutes from './routes/sessionRoutes.js';
 import profileRoutes from './routes/profileRoutes.js';
@@ -25,11 +26,13 @@ app.use(cors({
     return callback(new Error('Origin not allowed by CORS'));
   },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'X-CSRF-Token'],
   credentials: true
 }));
 app.use(cookieParser());
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ limit: '2mb', extended: true }));
+app.use(csrfProtection);
 
 if (!env.isProduction) {
   app.use((req, _res, next) => {
