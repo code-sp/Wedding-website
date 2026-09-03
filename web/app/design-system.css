@@ -59,6 +59,10 @@
 .text-secondary { color: var(--color-text-secondary); }
 .text-accent { color: var(--color-accent-ink); }
 
+/* Gold remains decorative; text uses AA-safe ink variants on ivory surfaces. */
+.event-board span { color: var(--color-accent-ink); }
+.carousel-board span { color: var(--scene-accent-ink, var(--color-primary-ink)); }
+
 @media (max-width: 639px) {
   .button-responsive { width: 100%; }
 }
