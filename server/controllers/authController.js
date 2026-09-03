@@ -1,5 +1,6 @@
 import crypto from 'crypto';
-import { User, RSVP, AllowedGuest, Session } from '../models.js';
+import { User, RSVP, AllowedGuest, Session, InvitationToken } from '../models.js';
+import { issueInvitationToken } from '../security/invitation.js';
 
 const cleanName = (value) => String(value ?? '')
   .replace(/[<>]/g, '')
@@ -7,10 +8,8 @@ const cleanName = (value) => String(value ?? '')
   .trim()
   .slice(0, 100);
 
-const generateAccessCode = (role) => {
-  const prefix = role === 'client' ? 'CL_' : 'SP_';
-  return `${prefix}${crypto.randomBytes(9).toString('base64url').toUpperCase()}`;
-};
+const generateClientAccessCode = () =>
+  `CL_${crypto.randomBytes(12).toString('base64url').toUpperCase()}`;
 
 const resolveTenant = (req) => {
   if (req.auth.role === 'admin') return String(req.body.clientId || req.query.clientId || '').trim();
@@ -28,20 +27,42 @@ export const createUser = async (req, res) => {
     const name = cleanName(req.body.name) || 'Invited Guest';
     if (!clientId) return res.status(400).json({ error: 'clientId required' });
 
-    let accessCode;
-    do {
-      accessCode = generateAccessCode(role);
-    } while (await User.exists({ access_code: accessCode }));
+    let clientAccessCode;
+    if (role === 'client') {
+      do {
+        clientAccessCode = generateClientAccessCode();
+      } while (await User.exists({ access_code: clientAccessCode }));
+    }
 
     const newUser = await User.create({
       _id: `user_${crypto.randomUUID()}`,
       role,
       clientId,
       name,
-      access_code: accessCode,
+      ...(clientAccessCode ? { access_code: clientAccessCode } : {}),
       is_registered: false,
       profile_complete: false
     });
+
+    let invitation = null;
+    if (role === 'user') {
+      try {
+        const { rawToken, record } = await issueInvitationToken({
+          user: newUser,
+          createdBy: req.auth.userId,
+          purpose: 'invite',
+          expiresInHours: req.body.expiresInHours
+        });
+        invitation = {
+          token: rawToken,
+          expiresAt: record.expiresAt,
+          loginFragment: `/login#invite=${encodeURIComponent(rawToken)}`
+        };
+      } catch (error) {
+        await User.deleteOne({ _id: newUser._id });
+        throw error;
+      }
+    }
 
     if (req.body.guestId) {
       await AllowedGuest.findOneAndUpdate(
@@ -56,9 +77,10 @@ export const createUser = async (req, res) => {
         id: newUser._id,
         name: newUser.name,
         role: newUser.role,
-        clientId: newUser.clientId,
-        accessCode
-      }
+        clientId: newUser.clientId
+      },
+      ...(clientAccessCode ? { clientAccessCode } : {}),
+      ...(invitation ? { invitation } : {})
     });
   } catch (error) {
     console.error('User provisioning failed', error);
@@ -82,7 +104,7 @@ export const getUsers = async (req, res) => {
       id: user._id,
       name: user.name,
       role: user.role,
-      accessCode: user.access_code,
+      hasLegacyAccessCode: Boolean(user.access_code),
       rsvpComplete: Boolean(user.is_registered),
       profileComplete: Boolean(user.profile_complete)
     })));
@@ -107,6 +129,7 @@ export const deleteUser = async (req, res) => {
     await Promise.all([
       RSVP.deleteMany({ userId: target._id }),
       Session.deleteMany({ userId: target._id }),
+      InvitationToken.deleteMany({ userId: target._id }),
       AllowedGuest.updateMany(
         { claimedBy: target._id },
         { $set: { isClaimed: false, claimedBy: null } }
