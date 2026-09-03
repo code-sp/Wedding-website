@@ -1,10 +1,20 @@
 import type { NextConfig } from 'next';
 
+const apiOrigin = process.env.SERVER_API_URL || 'http://localhost:3000';
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   images: {
     formats: ['image/avif', 'image/webp']
+  },
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: `${apiOrigin}/api/:path*`
+      }
+    ];
   },
   async headers() {
     return [
