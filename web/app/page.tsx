@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { DioramaHero } from '@/components/DioramaHero';
+import EventCarousel from '@/components/EventCarousel';
 
 const features = [
   {
@@ -24,7 +25,7 @@ export default function HomePage() {
           <Link className="brand" href="/">Sweta &amp; Shivpujan</Link>
           <div className="navlinks">
             <Link className="navlink" aria-current="page" href="/">Home</Link>
-            <Link className="navlink" href="/events">Events</Link>
+            <Link className="navlink" href="#events">Events</Link>
             <Link className="navlink" href="/rsvp">RSVP</Link>
             <Link className="navlink" href="/rooms">Rooms</Link>
             <Link className="navlink" href="/seating">Seating</Link>
@@ -45,12 +46,14 @@ export default function HomePage() {
               </p>
               <div className="actions">
                 <Link className="button button-primary" href="/rsvp">Open RSVP</Link>
-                <Link className="button button-secondary" href="/events">Explore Events</Link>
+                <Link className="button button-secondary" href="#events">Explore Events</Link>
               </div>
             </div>
             <DioramaHero />
           </div>
         </section>
+
+        <EventCarousel />
 
         <section className="section">
           <div className="container">
