@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next';
-import './tokens.css';
 import './globals.css';
+import './tokens.css';
 import './carousel.css';
 import './design-system.css';
 
