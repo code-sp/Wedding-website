@@ -1,0 +1,58 @@
+name: Migration CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [rebuild/nextjs-flutter-security]
+
+permissions:
+  contents: read
+
+jobs:
+  server:
+    name: Express security syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install --ignore-scripts
+      - name: Check server JavaScript syntax
+        run: find server -name '*.js' -print0 | xargs -0 -n1 node --check
+
+  nextjs:
+    name: Next.js build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package.json
+      - run: npm install --ignore-scripts
+      - run: npm run build
+        env:
+          SERVER_API_URL: http://localhost:3000
+          NEXT_PUBLIC_API_BASE_URL: /api
+
+  flutter:
+    name: Flutter analyze
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
