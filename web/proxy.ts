@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000/api';
+const API_BASE = `${process.env.SERVER_API_URL || 'http://localhost:3000'}/api`;
 const publicPaths = new Set(['/login']);
 
 export async function proxy(request: NextRequest) {
@@ -22,6 +22,8 @@ export async function proxy(request: NextRequest) {
     if (!sessionResponse.ok) {
       const response = NextResponse.redirect(new URL('/login', request.url));
       response.cookies.delete('access_token');
+      response.cookies.delete('refresh_token');
+      response.cookies.delete('csrf_token');
       return response;
     }
 
