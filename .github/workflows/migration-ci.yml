@@ -6,6 +6,10 @@ on:
   push:
     branches: [rebuild/nextjs-flutter-security]
 
+concurrency:
+  group: migration-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
