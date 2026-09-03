@@ -24,6 +24,6 @@ const refreshLimiter = rateLimit({
 router.post('/session/login', loginLimiter, sessionLogin);
 router.post('/session/refresh', refreshLimiter, refreshSession);
 router.get('/session', authenticate, getSession);
-router.post('/session/logout', sessionLogout);
+router.post('/session/logout', authenticate, sessionLogout);
 
 export default router;
