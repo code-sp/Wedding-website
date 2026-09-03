@@ -34,6 +34,31 @@
   to { background-position: -220% 0; }
 }
 
+.route-error {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: clamp(1rem, 4vw, 2rem);
+  background: var(--color-background);
+}
+.route-error-card {
+  width: min(100%, 38rem);
+  padding: clamp(1.25rem, 5vw, 2.5rem);
+}
+.route-error-card h1 {
+  margin: .55rem 0 .75rem;
+  font-family: var(--font-heading);
+  font-size: clamp(2rem, 7vw, 3.5rem);
+  font-weight: 500;
+  line-height: var(--leading-tight);
+  text-wrap: balance;
+}
+.route-error-card p {
+  margin: 0 0 1.35rem;
+  color: var(--color-text-secondary);
+  line-height: var(--leading-body);
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -67,6 +92,18 @@
   animation: spinner-rotate .7s linear infinite;
 }
 @keyframes spinner-rotate { to { transform: rotate(360deg); } }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .route-transition,
