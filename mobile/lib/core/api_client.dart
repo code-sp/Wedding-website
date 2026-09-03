@@ -40,9 +40,10 @@ class WeddingApiClient {
         onRequest: (options, handler) async {
           final method = options.method.toUpperCase();
           final isMutation = !const {'GET', 'HEAD', 'OPTIONS'}.contains(method);
-          final isLogin = options.path.endsWith('/session/login');
+          final isPreSession = options.path.endsWith('/session/login') ||
+              options.path.endsWith('/session/exchange');
 
-          if (isMutation && !isLogin) {
+          if (isMutation && !isPreSession) {
             final cookies = await _cookieJar.loadForRequest(options.uri);
             for (final cookie in cookies) {
               if (cookie.name == 'csrf_token') {
@@ -65,6 +66,16 @@ class WeddingApiClient {
     final response = await _dio.post<Map<String, dynamic>>(
       '/session/login',
       data: {'code': code, 'clientId': clientId},
+    );
+    return SessionUser.fromJson(
+      Map<String, dynamic>.from(response.data!['user'] as Map),
+    );
+  }
+
+  Future<SessionUser> exchangeInvitation(String token) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/session/exchange',
+      data: {'token': token},
     );
     return SessionUser.fromJson(
       Map<String, dynamic>.from(response.data!['user'] as Map),
