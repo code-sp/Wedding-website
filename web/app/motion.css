@@ -30,9 +30,7 @@
 .skeleton-block { width: min(42rem, 100%); height: clamp(3.5rem, 8vw, 6rem); border-radius: var(--radius-md); }
 .skeleton-card { width: min(100%, 76rem); height: clamp(22rem, 50vw, 36rem); border-radius: var(--radius-lg); }
 
-@keyframes skeleton-shimmer {
-  to { background-position: -220% 0; }
-}
+@keyframes skeleton-shimmer { to { background-position: -220% 0; } }
 
 .route-error {
   min-height: 100dvh;
@@ -41,10 +39,7 @@
   padding: clamp(1rem, 4vw, 2rem);
   background: var(--color-background);
 }
-.route-error-card {
-  width: min(100%, 38rem);
-  padding: clamp(1.25rem, 5vw, 2.5rem);
-}
+.route-error-card { width: min(100%, 38rem); padding: clamp(1.25rem, 5vw, 2.5rem); }
 .route-error-card h1 {
   margin: .55rem 0 .75rem;
   font-family: var(--font-heading);
@@ -53,19 +48,25 @@
   line-height: var(--leading-tight);
   text-wrap: balance;
 }
-.route-error-card p {
-  margin: 0 0 1.35rem;
-  color: var(--color-text-secondary);
-  line-height: var(--leading-body);
-}
+.route-error-card p { margin: 0 0 1.35rem; color: var(--color-text-secondary); line-height: var(--leading-body); }
 
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: var(--z-modal);
+.shared-modal {
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  padding: 1rem;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  overflow: hidden;
+}
+.shared-modal[open] {
   display: grid;
   place-items: center;
-  padding: 1rem;
+}
+.shared-modal::backdrop {
   background: rgba(29, 21, 23, .42);
   animation: modal-backdrop-in var(--motion-standard) ease both;
 }
@@ -79,6 +80,39 @@
   box-shadow: var(--shadow-floating);
   animation: modal-panel-in var(--motion-standard) var(--ease-standard) both;
 }
+.modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1rem .85rem;
+  border-bottom: 1px solid var(--color-border);
+  background: rgba(255, 250, 242, .96);
+  backdrop-filter: blur(12px);
+}
+.modal-header h2 { margin: 0; font-family: var(--font-heading); font-size: clamp(1.45rem, 4vw, 2rem); font-weight: 500; }
+.modal-close {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: 1.5rem;
+}
+.modal-close:hover { background: rgba(122,31,61,.06); color: var(--color-primary); }
+.modal-close:focus-visible { outline: 3px solid var(--color-focus-ring); outline-offset: 1px; }
+.modal-body { padding: 1rem; color: var(--color-text-secondary); line-height: var(--leading-body); }
+.modal-footer { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: .65rem; padding: .85rem 1rem 1rem; border-top: 1px solid var(--color-border); }
+
 @keyframes modal-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes modal-panel-in { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
 
@@ -105,12 +139,18 @@
   border: 0;
 }
 
+@media (max-width: 639px) {
+  .shared-modal { padding: .75rem; align-items: end; }
+  .modal-panel { width: 100%; max-height: min(88dvh, 48rem); border-radius: 1.25rem; }
+  .modal-footer > * { flex: 1 1 auto; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .route-transition,
   .skeleton-bar,
   .skeleton-block,
   .skeleton-card,
-  .modal-backdrop,
+  .shared-modal::backdrop,
   .modal-panel,
   .inline-spinner {
     animation-duration: .001ms !important;
