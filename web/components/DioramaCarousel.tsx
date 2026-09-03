@@ -9,6 +9,7 @@ const scenes = [
     title: 'Ganesh Puja',
     copy: 'An open-air ivory altar with brass diyas, lotus details, pine forest layers and misty Himalayan-style peaks.',
     accent: '#c7a66a',
+    accentInk: '#735624',
     glow: 'rgba(223, 186, 112, .35)'
   },
   {
@@ -17,6 +18,7 @@ const scenes = [
     title: 'Haldi Ceremony',
     copy: 'Turmeric, marigold and warm champagne tones interpreted as a playful miniature garden celebration.',
     accent: '#d2a13a',
+    accentInk: '#6a4a00',
     glow: 'rgba(242, 191, 73, .33)'
   },
   {
@@ -25,6 +27,7 @@ const scenes = [
     title: 'Mehendi Evening',
     copy: 'Emerald foliage, refined Mithila motifs and ornamental mehendi geometry without the haunted-hand visual language.',
     accent: '#527154',
+    accentInk: '#2f5033',
     glow: 'rgba(82, 113, 84, .3)'
   },
   {
@@ -33,6 +36,7 @@ const scenes = [
     title: 'Wedding',
     copy: 'The grandest miniature scene: a Bihari-touch mandap, layered mountains, complete circular stage and cinematic depth.',
     accent: '#7a1f3d',
+    accentInk: '#5f1730',
     glow: 'rgba(122, 31, 61, .3)'
   }
 ];
@@ -71,7 +75,14 @@ export function DioramaCarousel() {
         touchStart.current = null;
       }}
     >
-      <div className="carousel-scene" style={{ '--scene-accent': scene.accent, '--scene-glow': scene.glow } as React.CSSProperties}>
+      <div
+        className="carousel-scene"
+        style={{
+          '--scene-accent': scene.accent,
+          '--scene-accent-ink': scene.accentInk,
+          '--scene-glow': scene.glow
+        } as React.CSSProperties}
+      >
         <div className="carousel-mountains back" />
         <div className="carousel-mountains front" />
         <div className="carousel-forest" />
