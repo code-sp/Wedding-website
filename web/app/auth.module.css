@@ -12,47 +12,43 @@
   width: min(100%, 34rem);
   min-width: 0;
   padding: clamp(1.1rem, 5vw, 2.5rem);
-  border: 1px solid rgba(90,65,70,.16);
-  border-radius: clamp(1.25rem, 4vw, 1.75rem);
+  border: 1px solid var(--color-border);
+  border-radius: clamp(1.25rem, 4vw, var(--radius-lg));
   background: rgba(255,252,246,.92);
-  box-shadow: 0 24px 70px rgba(54,36,42,.14);
+  box-shadow: var(--shadow-soft);
   backdrop-filter: blur(16px);
 }
 
 .eyebrow {
   margin-bottom: .5rem;
-  color: #7a1f3d;
-  font-size: clamp(.68rem, 1.7vw, .75rem);
+  color: var(--color-primary);
+  font-size: clamp(.68rem,1.7vw,var(--text-xs));
   font-weight: 800;
-  letter-spacing: clamp(.12em, .7vw, .18em);
+  letter-spacing: clamp(.12em,.7vw,.18em);
   line-height: 1.45;
   text-transform: uppercase;
 }
 
 .title {
   margin: 0 0 .75rem;
-  font-family: Georgia, 'Times New Roman', serif;
-  font-size: clamp(2rem, 7vw, 3.5rem);
+  color: var(--color-text-primary);
+  font-family: var(--font-heading);
+  font-size: clamp(2rem,7vw,3.5rem);
   font-weight: 500;
-  line-height: 1;
+  line-height: var(--leading-tight);
   text-wrap: balance;
 }
 
 .copy {
   margin: 0;
-  color: #5f5256;
-  line-height: 1.65;
+  color: var(--color-text-secondary);
+  line-height: var(--leading-body);
   overflow-wrap: break-word;
 }
 
-.form {
-  min-width: 0;
-  display: grid;
-  gap: 1rem;
-  margin-top: 1.5rem;
-}
+.form { min-width: 0; display: grid; gap: 1rem; margin-top: 1.5rem; }
 .field { min-width: 0; display: grid; gap: .45rem; }
-.label { color: #46393d; font-size: .86rem; font-weight: 700; }
+.label { color: var(--wedding-ink-700); font-size: .86rem; font-weight: 700; }
 
 .input,
 .select {
@@ -60,57 +56,55 @@
   min-width: 0;
   min-height: 48px;
   padding: .8rem .9rem;
-  border: 1px solid rgba(90,65,70,.22);
+  border: 1px solid rgba(90,65,70,.25);
   border-radius: 14px;
   outline: none;
-  background: rgba(255,255,255,.78);
-  color: #241b1d;
+  background: rgba(255,255,255,.82);
+  color: var(--color-text-primary);
   font-size: max(1rem, 16px);
 }
 .input:focus,
-.select:focus { border-color: #7a1f3d; box-shadow: 0 0 0 3px rgba(122,31,61,.1); }
+.select:focus { border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-focus-ring); }
 
 .submit {
   width: 100%;
   min-height: 48px;
   padding: .8rem 1rem;
   border: 0;
-  border-radius: 999px;
-  background: linear-gradient(135deg,#7a1f3d,#5f1730);
-  color: #fff;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(135deg,var(--color-primary),var(--color-primary-strong));
+  color: var(--color-on-primary);
   cursor: pointer;
   font-weight: 800;
-  transition: transform 150ms ease, opacity 150ms ease;
+  transition: transform var(--motion-fast) ease, opacity var(--motion-fast) ease;
 }
 .submit:hover { transform: translateY(-1px); }
 .submit:active { transform: translateY(1px); }
-.submit:focus-visible { outline: 3px solid rgba(122,31,61,.18); outline-offset: 2px; }
+.submit:focus-visible { outline: 3px solid var(--color-focus-ring); outline-offset: 2px; }
 .submit:disabled { opacity: .55; cursor: not-allowed; transform: none; }
 
 .error {
   max-width: 100%;
   padding: .75rem;
   border-radius: 12px;
-  background: rgba(164,58,58,.08);
-  color: #8f2929;
+  background: rgba(143,41,41,.08);
+  color: var(--color-danger);
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
 
 .progress { display: flex; gap: .4rem; margin: 1.25rem 0 0; }
-.progress span { height: 5px; flex: 1; border-radius: 999px; background: rgba(122,31,61,.15); }
-.progress span.active { background: #7a1f3d; }
+.progress span { height: 5px; flex: 1; border-radius: var(--radius-pill); background: rgba(122,31,61,.15); }
+.progress span.active { background: var(--color-primary); }
 
-/* Tablet: 640–1024 */
 @media (min-width: 640px) and (max-width: 1024px) {
   .panel { width: min(100%, 36rem); }
 }
 
-/* Mobile: under 640 */
 @media (max-width: 639px) {
   .page { align-items: start; padding-top: max(.75rem, env(safe-area-inset-top)); padding-bottom: max(.75rem, env(safe-area-inset-bottom)); }
-  .panel { margin-block: auto; padding: clamp(1rem, 5vw, 1.4rem); }
-  .title { font-size: clamp(2rem, 11vw, 3rem); }
+  .panel { margin-block: auto; padding: clamp(1rem,5vw,1.4rem); }
+  .title { font-size: clamp(2rem,11vw,3rem); }
   .form { margin-top: 1.2rem; gap: .9rem; }
 }
 
