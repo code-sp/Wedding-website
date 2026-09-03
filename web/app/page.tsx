@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { DioramaHero } from '@/components/DioramaHero';
 import EventCarousel from '@/components/EventCarousel';
+import { SiteHeader } from '@/components/SiteHeader';
 
 const features = [
   {
@@ -20,18 +21,7 @@ const features = [
 export default function HomePage() {
   return (
     <div className="shell">
-      <header className="site-header">
-        <nav className="container navbar" aria-label="Wedding navigation">
-          <Link className="brand" href="/">Sweta &amp; Shivpujan</Link>
-          <div className="navlinks">
-            <Link className="navlink" aria-current="page" href="/">Home</Link>
-            <Link className="navlink" href="#events">Events</Link>
-            <Link className="navlink" href="/rsvp">RSVP</Link>
-            <Link className="navlink" href="/rooms">Rooms</Link>
-            <Link className="navlink" href="/seating">Seating</Link>
-          </div>
-        </nav>
-      </header>
+      <SiteHeader />
 
       <main>
         <section className="hero">
