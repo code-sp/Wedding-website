@@ -8,6 +8,7 @@ import { User, Content } from './models.js';
 import * as defaults from './defaults.js';
 
 import sessionRoutes from './routes/sessionRoutes.js';
+import profileRoutes from './routes/profileRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import contentRoutes from './routes/contentRoutes.js';
 import rsvpRoutes from './routes/rsvpRoutes.js';
@@ -42,6 +43,7 @@ app.get('/ping', (_req, res) => res.send('pong'));
 await connectDB();
 
 app.use('/api', sessionRoutes);
+app.use('/api', profileRoutes);
 app.use('/api', authRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api', rsvpRoutes);
