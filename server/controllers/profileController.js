@@ -46,8 +46,7 @@ export const completeProfile = async (req, res) => {
     user.profile_complete = true;
     await user.save();
 
-    // Refresh the short-lived cookie immediately so route guards see onboarding completion.
-    issueAccessToken(res, user);
+    issueAccessToken(res, user, req.auth.sessionId);
 
     return res.json({
       success: true,
