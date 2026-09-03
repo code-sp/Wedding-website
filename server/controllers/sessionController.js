@@ -1,5 +1,11 @@
 import { User } from '../models.js';
-import { issueAccessToken, clearSession } from '../security/session.js';
+import {
+  issueAccessToken,
+  createRefreshSession,
+  rotateRefreshSession,
+  revokeRefreshSession,
+  clearSession
+} from '../security/session.js';
 
 const toSessionUser = (user) => ({
   id: user._id,
@@ -29,10 +35,38 @@ export const sessionLogin = async (req, res) => {
     }
 
     issueAccessToken(res, user);
+    await createRefreshSession(res, user, req.get('user-agent') || '');
     return res.json({ user: toSessionUser(user) });
   } catch (error) {
     console.error('Session login failed', error);
     return res.status(500).json({ error: 'Unable to create session' });
+  }
+};
+
+export const refreshSession = async (req, res) => {
+  try {
+    const rotated = await rotateRefreshSession(
+      res,
+      req.cookies?.refresh_token,
+      req.get('user-agent') || ''
+    );
+    if (!rotated) {
+      clearSession(res);
+      return res.status(401).json({ error: 'Refresh session expired or invalid' });
+    }
+
+    const user = await User.findById(rotated.userId);
+    if (!user) {
+      clearSession(res);
+      return res.status(401).json({ error: 'Session user no longer exists' });
+    }
+
+    issueAccessToken(res, user);
+    return res.json({ user: toSessionUser(user) });
+  } catch (error) {
+    console.error('Session refresh failed', error);
+    clearSession(res);
+    return res.status(401).json({ error: 'Unable to refresh session' });
   }
 };
 
@@ -44,7 +78,8 @@ export const getSession = async (req, res) => {
   return res.json({ user: toSessionUser(user) });
 };
 
-export const sessionLogout = async (_req, res) => {
+export const sessionLogout = async (req, res) => {
+  await revokeRefreshSession(req.cookies?.refresh_token);
   clearSession(res);
   return res.status(204).end();
 };
