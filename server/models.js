@@ -37,6 +37,20 @@ const SessionSchema = new mongoose.Schema({
   userAgent: { type: String, default: '' }
 }, { _id: false });
 
+const InvitationTokenSchema = new mongoose.Schema({
+  _id: String,
+  userId: { type: String, ref: 'User', required: true, index: true },
+  clientId: { type: String, required: true, index: true },
+  tokenHash: { type: String, required: true, unique: true },
+  purpose: { type: String, enum: ['invite', 'magic_link'], default: 'invite' },
+  createdBy: { type: String, default: null },
+  createdAt: { type: Date, default: Date.now },
+  expiresAt: { type: Date, required: true, index: { expires: 0 } },
+  usedAt: { type: Date, default: null },
+  revokedAt: { type: Date, default: null }
+}, { _id: false });
+InvitationTokenSchema.index({ userId: 1, purpose: 1, revokedAt: 1, usedAt: 1 });
+
 const RSVPSchema = new mongoose.Schema({
   _id: String,
   userId: { type: String, ref: 'User', required: true, index: true },
@@ -76,6 +90,7 @@ AllowedGuestSchema.index({ clientId: 1, name: 1 });
 
 export const User = mongoose.model('User', UserSchema);
 export const Session = mongoose.model('Session', SessionSchema);
+export const InvitationToken = mongoose.model('InvitationToken', InvitationTokenSchema);
 export const RSVP = mongoose.model('RSVP', RSVPSchema);
 export const Content = mongoose.model('Content', ContentSchema);
 export const AllowedGuest = mongoose.model('AllowedGuest', AllowedGuestSchema);
