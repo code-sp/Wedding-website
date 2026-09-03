@@ -7,6 +7,7 @@ import {
   revokeSessionById,
   clearSession
 } from '../security/session.js';
+import { issueCsrfToken, clearCsrfToken } from '../security/csrf.js';
 
 const toSessionUser = (user) => ({
   id: user._id,
@@ -37,6 +38,7 @@ export const sessionLogin = async (req, res) => {
 
     const session = await createRefreshSession(res, user, req.get('user-agent') || '');
     issueAccessToken(res, user, session._id);
+    issueCsrfToken(res);
     return res.json({ user: toSessionUser(user) });
   } catch (error) {
     console.error('Session login failed', error);
@@ -53,20 +55,24 @@ export const refreshSession = async (req, res) => {
     );
     if (!rotated) {
       clearSession(res);
+      clearCsrfToken(res);
       return res.status(401).json({ error: 'Refresh session expired or invalid' });
     }
 
     const user = await User.findById(rotated.userId);
     if (!user) {
       clearSession(res);
+      clearCsrfToken(res);
       return res.status(401).json({ error: 'Session user no longer exists' });
     }
 
     issueAccessToken(res, user, rotated._id);
+    issueCsrfToken(res);
     return res.json({ user: toSessionUser(user) });
   } catch (error) {
     console.error('Session refresh failed', error);
     clearSession(res);
+    clearCsrfToken(res);
     return res.status(401).json({ error: 'Unable to refresh session' });
   }
 };
@@ -76,6 +82,7 @@ export const getSession = async (req, res) => {
     .select('_id name role clientId is_registered profile_complete');
   if (!user) return res.status(401).json({ error: 'Session user no longer exists' });
 
+  if (!req.cookies?.csrf_token) issueCsrfToken(res);
   return res.json({ user: toSessionUser(user) });
 };
 
@@ -85,5 +92,6 @@ export const sessionLogout = async (req, res) => {
     revokeSessionById(req.auth?.sessionId)
   ]);
   clearSession(res);
+  clearCsrfToken(res);
   return res.status(204).end();
 };
