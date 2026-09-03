@@ -2,28 +2,30 @@
   min-height: 100dvh;
   display: grid;
   place-items: center;
-  padding: 1rem;
+  padding: clamp(.75rem, 3vw, 1.5rem);
   background:
-    radial-gradient(circle at top left, rgba(199, 166, 106, .18), transparent 24rem),
+    radial-gradient(circle at top left, rgba(199,166,106,.18), transparent 24rem),
     linear-gradient(180deg, #fbf7f0, #f4ece2);
 }
 
 .panel {
   width: min(100%, 34rem);
-  padding: clamp(1.25rem, 5vw, 2.5rem);
-  border-radius: 28px;
-  border: 1px solid rgba(90, 65, 70, .16);
-  background: rgba(255, 252, 246, .9);
-  box-shadow: 0 24px 70px rgba(54, 36, 42, .14);
+  min-width: 0;
+  padding: clamp(1.1rem, 5vw, 2.5rem);
+  border: 1px solid rgba(90,65,70,.16);
+  border-radius: clamp(1.25rem, 4vw, 1.75rem);
+  background: rgba(255,252,246,.92);
+  box-shadow: 0 24px 70px rgba(54,36,42,.14);
   backdrop-filter: blur(16px);
 }
 
 .eyebrow {
   margin-bottom: .5rem;
   color: #7a1f3d;
-  font-size: .75rem;
+  font-size: clamp(.68rem, 1.7vw, .75rem);
   font-weight: 800;
-  letter-spacing: .18em;
+  letter-spacing: clamp(.12em, .7vw, .18em);
+  line-height: 1.45;
   text-transform: uppercase;
 }
 
@@ -31,40 +33,98 @@
   margin: 0 0 .75rem;
   font-family: Georgia, 'Times New Roman', serif;
   font-size: clamp(2rem, 7vw, 3.5rem);
-  line-height: 1;
   font-weight: 500;
+  line-height: 1;
+  text-wrap: balance;
 }
 
-.copy { color: #5f5256; line-height: 1.65; }
-.form { display: grid; gap: 1rem; margin-top: 1.5rem; }
-.field { display: grid; gap: .45rem; }
-.label { font-size: .86rem; font-weight: 700; color: #46393d; }
-.input, .select {
+.copy {
+  margin: 0;
+  color: #5f5256;
+  line-height: 1.65;
+  overflow-wrap: break-word;
+}
+
+.form {
+  min-width: 0;
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+.field { min-width: 0; display: grid; gap: .45rem; }
+.label { color: #46393d; font-size: .86rem; font-weight: 700; }
+
+.input,
+.select {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: .8rem .9rem;
+  border: 1px solid rgba(90,65,70,.22);
+  border-radius: 14px;
+  outline: none;
+  background: rgba(255,255,255,.78);
+  color: #241b1d;
+  font-size: max(1rem, 16px);
+}
+.input:focus,
+.select:focus { border-color: #7a1f3d; box-shadow: 0 0 0 3px rgba(122,31,61,.1); }
+
+.submit {
   width: 100%;
   min-height: 48px;
-  border: 1px solid rgba(90, 65, 70, .22);
-  border-radius: 14px;
-  padding: .8rem .9rem;
-  background: rgba(255,255,255,.75);
-  color: #241b1d;
-  outline: none;
-}
-.input:focus, .select:focus { border-color: #7a1f3d; box-shadow: 0 0 0 3px rgba(122,31,61,.1); }
-.submit {
-  min-height: 48px;
+  padding: .8rem 1rem;
   border: 0;
   border-radius: 999px;
-  padding: .8rem 1rem;
-  background: linear-gradient(135deg, #7a1f3d, #5f1730);
+  background: linear-gradient(135deg,#7a1f3d,#5f1730);
   color: #fff;
-  font-weight: 800;
   cursor: pointer;
+  font-weight: 800;
   transition: transform 150ms ease, opacity 150ms ease;
 }
 .submit:hover { transform: translateY(-1px); }
 .submit:active { transform: translateY(1px); }
+.submit:focus-visible { outline: 3px solid rgba(122,31,61,.18); outline-offset: 2px; }
 .submit:disabled { opacity: .55; cursor: not-allowed; transform: none; }
-.error { color: #8f2929; background: rgba(164,58,58,.08); padding: .75rem; border-radius: 12px; }
+
+.error {
+  max-width: 100%;
+  padding: .75rem;
+  border-radius: 12px;
+  background: rgba(164,58,58,.08);
+  color: #8f2929;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .progress { display: flex; gap: .4rem; margin: 1.25rem 0 0; }
 .progress span { height: 5px; flex: 1; border-radius: 999px; background: rgba(122,31,61,.15); }
 .progress span.active { background: #7a1f3d; }
+
+/* Tablet: 640–1024 */
+@media (min-width: 640px) and (max-width: 1024px) {
+  .panel { width: min(100%, 36rem); }
+}
+
+/* Mobile: under 640 */
+@media (max-width: 639px) {
+  .page { align-items: start; padding-top: max(.75rem, env(safe-area-inset-top)); padding-bottom: max(.75rem, env(safe-area-inset-bottom)); }
+  .panel { margin-block: auto; padding: clamp(1rem, 5vw, 1.4rem); }
+  .title { font-size: clamp(2rem, 11vw, 3rem); }
+  .form { margin-top: 1.2rem; gap: .9rem; }
+}
+
+@media (max-width: 414px) {
+  .page { padding-inline: .75rem; }
+  .panel { border-radius: 1.2rem; }
+}
+
+@media (max-width: 375px) {
+  .page { padding-inline: .6rem; }
+  .panel { padding: 1rem; }
+  .copy { font-size: .95rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .submit { transition-duration: .001ms; }
+}
