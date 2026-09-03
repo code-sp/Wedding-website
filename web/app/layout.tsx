@@ -1,8 +1,10 @@
 import type { Metadata, Viewport } from 'next';
+import { ToastProvider } from '@/components/ui/ToastProvider';
 import './globals.css';
 import './tokens.css';
 import './carousel.css';
 import './design-system.css';
+import './motion.css';
 
 export const metadata: Metadata = {
   title: 'Sweta & Shivpujan Wedding',
@@ -18,7 +20,9 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <ToastProvider>{children}</ToastProvider>
+      </body>
     </html>
   );
 }
