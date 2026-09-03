@@ -9,6 +9,7 @@ import * as defaults from './defaults.js';
 import { csrfProtection } from './middleware/csrf.js';
 
 import sessionRoutes from './routes/sessionRoutes.js';
+import invitationRoutes from './routes/invitationRoutes.js';
 import profileRoutes from './routes/profileRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import contentRoutes from './routes/contentRoutes.js';
@@ -46,6 +47,7 @@ app.get('/ping', (_req, res) => res.send('pong'));
 await connectDB();
 
 app.use('/api', sessionRoutes);
+app.use('/api', invitationRoutes);
 app.use('/api', profileRoutes);
 app.use('/api', authRoutes);
 app.use('/api/content', contentRoutes);
