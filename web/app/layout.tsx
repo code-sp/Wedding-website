@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next';
+import './tokens.css';
 import './globals.css';
+import './design-system.css';
 import './carousel.css';
 
 export const metadata: Metadata = {
