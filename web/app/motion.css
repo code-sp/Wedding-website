@@ -1,0 +1,82 @@
+.route-transition {
+  min-height: 100dvh;
+  animation: route-enter var(--motion-standard) var(--ease-standard) both;
+}
+
+@keyframes route-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.route-skeleton {
+  min-height: 100dvh;
+  display: grid;
+  align-content: start;
+  gap: 1.25rem;
+  padding: clamp(1rem, 4vw, 2rem);
+  background: var(--color-background);
+}
+
+.skeleton-bar,
+.skeleton-block,
+.skeleton-card {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(90deg, rgba(90,65,70,.06), rgba(255,255,255,.65), rgba(90,65,70,.06));
+  background-size: 220% 100%;
+  animation: skeleton-shimmer 1.3s linear infinite;
+}
+.skeleton-bar { width: min(14rem, 62vw); height: 1rem; border-radius: var(--radius-pill); }
+.skeleton-block { width: min(42rem, 100%); height: clamp(3.5rem, 8vw, 6rem); border-radius: var(--radius-md); }
+.skeleton-card { width: min(100%, 76rem); height: clamp(22rem, 50vw, 36rem); border-radius: var(--radius-lg); }
+
+@keyframes skeleton-shimmer {
+  to { background-position: -220% 0; }
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(29, 21, 23, .42);
+  animation: modal-backdrop-in var(--motion-standard) ease both;
+}
+.modal-panel {
+  width: min(100%, 38rem);
+  max-height: min(90dvh, 48rem);
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-solid);
+  box-shadow: var(--shadow-floating);
+  animation: modal-panel-in var(--motion-standard) var(--ease-standard) both;
+}
+@keyframes modal-backdrop-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes modal-panel-in { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+.inline-spinner {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spinner-rotate .7s linear infinite;
+}
+@keyframes spinner-rotate { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .route-transition,
+  .skeleton-bar,
+  .skeleton-block,
+  .skeleton-card,
+  .modal-backdrop,
+  .modal-panel,
+  .inline-spinner {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
