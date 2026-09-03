@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || '/api';
 
 export type SessionUser = {
   id: string;
@@ -16,12 +16,39 @@ export class ApiError extends Error {
 
 let refreshPromise: Promise<boolean> | null = null;
 
+const getCookie = (name: string) => {
+  if (typeof document === 'undefined') return '';
+  const prefix = `${encodeURIComponent(name)}=`;
+  return document.cookie
+    .split('; ')
+    .find((entry) => entry.startsWith(prefix))
+    ?.slice(prefix.length) || '';
+};
+
+const isMutation = (method?: string) => {
+  const normalized = (method || 'GET').toUpperCase();
+  return !['GET', 'HEAD', 'OPTIONS'].includes(normalized);
+};
+
+const secureHeaders = (init: RequestInit, path: string) => {
+  const headers = new Headers(init.headers);
+  headers.set('Content-Type', 'application/json');
+
+  if (isMutation(init.method) && path !== '/session/login') {
+    const csrfToken = getCookie('csrf_token');
+    if (csrfToken) headers.set('X-CSRF-Token', decodeURIComponent(csrfToken));
+  }
+
+  return headers;
+};
+
 async function refreshAccessSession(): Promise<boolean> {
   if (!refreshPromise) {
-    refreshPromise = fetch(`${API_BASE}/session/refresh`, {
+    const path = '/session/refresh';
+    refreshPromise = fetch(`${API_BASE}${path}`, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' }
+      headers: secureHeaders({ method: 'POST' }, path)
     })
       .then((response) => response.ok)
       .catch(() => false)
@@ -36,10 +63,7 @@ async function request<T>(path: string, init: RequestInit = {}, allowRefresh = t
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
     credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...init.headers
-    }
+    headers: secureHeaders(init, path)
   });
 
   if (response.status === 401 && allowRefresh && path !== '/session/login' && path !== '/session/refresh') {
