@@ -24,6 +24,7 @@ const refreshLimiter = rateLimit({
 router.post('/session/login', loginLimiter, sessionLogin);
 router.post('/session/refresh', refreshLimiter, refreshSession);
 router.get('/session', authenticate, getSession);
-router.post('/session/logout', authenticate, sessionLogout);
+// CSRF is enforced globally; refresh-token lookup is enough to revoke a session even if access_token expired.
+router.post('/session/logout', sessionLogout);
 
 export default router;
