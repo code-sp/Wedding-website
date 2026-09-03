@@ -1,121 +1,117 @@
+import crypto from 'crypto';
 import { User, RSVP, AllowedGuest } from '../models.js';
 
+const makeId = (prefix) => `${prefix}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+
+const resolveTargetUser = async (req) => {
+  if (req.auth.role === 'user') {
+    return User.findById(req.auth.userId);
+  }
+
+  const requestedUserId = req.body.userId;
+  if (!requestedUserId) return null;
+
+  const user = await User.findById(requestedUserId);
+  if (!user) return null;
+
+  if (req.auth.role === 'client' && user.clientId !== req.auth.clientId) {
+    return null;
+  }
+
+  return user;
+};
+
 export const submitRSVP = async (req, res) => {
-    try {
-        let { userId, data, accessToken, clientId } = req.body;
-
-        // Lookup User by Token if needed
-        if (!userId && accessToken) {
-            const user = await User.findOne({ access_code: accessToken });
-            if (user) userId = user._id;
-        }
-
-        if (!userId || !data) return res.status(400).json({ error: 'Missing data or invalid token' });
-
-        // Upsert RSVP
-        const existing = await RSVP.findOne({ userId });
-
-        if (existing) {
-            existing.data = { ...data, id: existing._id }; // Ensure ID consistency
-            existing.clientId = clientId || existing.clientId || 'default_client';
-            existing.timestamp = new Date();
-            await existing.save();
-            res.json({ success: true, id: existing._id });
-        } else {
-            const newId = `rsvp_${Date.now()}`;
-            
-            // Upgrade temporary guest token to permanent code (SP_ + 6 Alphanum)
-            let finalAccessCode = undefined;
-            const userDoc = await User.findById(userId);
-            if (userDoc && userDoc.access_code && (userDoc.access_code.startsWith('REQ') || userDoc.access_code.startsWith('guest_'))) {
-                finalAccessCode = 'SP_' + Math.random().toString(36).substring(2, 8).toUpperCase();
-                await User.updateOne({ _id: userId }, { 
-                    is_registered: true, 
-                    access_code: finalAccessCode,
-                    old_access_code: userDoc.access_code 
-                });
-                data.accessToken = finalAccessCode; // Sync RSVP payload
-            } else {
-                await User.updateOne({ _id: userId }, { is_registered: true });
-            }
-
-            const cleanData = { ...data, id: newId };
-
-            await RSVP.create({
-                _id: newId,
-                userId,
-                clientId: clientId || userDoc?.clientId || 'default_client',
-                data: cleanData
-            });
-
-            res.json({ success: true, id: newId, newAccessCode: finalAccessCode });
-        }
-    } catch (e) {
-        console.error(e);
-        res.status(500).json({ error: 'Server Error' });
+  try {
+    const { data } = req.body;
+    if (!data || typeof data !== 'object') {
+      return res.status(400).json({ error: 'RSVP data required' });
     }
+
+    const user = await resolveTargetUser(req);
+    if (!user) return res.status(403).json({ error: 'RSVP identity could not be verified' });
+
+    const clientId = user.clientId || req.auth.clientId || 'default_client';
+    const existing = await RSVP.findOne({ userId: user._id, clientId });
+
+    if (existing) {
+      existing.data = { ...data, id: existing._id };
+      existing.timestamp = new Date();
+      await existing.save();
+      await User.updateOne({ _id: user._id }, { is_registered: true, rsvp_data: existing.data });
+      return res.json({ success: true, id: existing._id });
+    }
+
+    const newId = makeId('rsvp');
+    const cleanData = { ...data, id: newId };
+
+    await RSVP.create({
+      _id: newId,
+      userId: user._id,
+      clientId,
+      data: cleanData
+    });
+
+    await User.updateOne(
+      { _id: user._id },
+      { is_registered: true, rsvp_data: cleanData }
+    );
+
+    return res.status(201).json({ success: true, id: newId });
+  } catch (error) {
+    console.error('RSVP submission failed', error);
+    return res.status(500).json({ error: 'Unable to save RSVP' });
+  }
 };
 
 export const deleteRSVP = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const rsvp = await RSVP.findById(id);
+  try {
+    const { id } = req.params;
+    const rsvp = await RSVP.findById(id);
+    if (!rsvp) return res.status(404).json({ error: 'RSVP not found' });
 
-        if (rsvp) {
-            // Cleanup User and AllowedGuest
-            if (rsvp.userId) {
-                const user = await User.findById(rsvp.userId);
-                if (user) {
-                    await AllowedGuest.updateOne(
-                        { claimedBy: user._id },
-                        { $set: { isClaimed: false, claimedBy: null } }
-                    );
-                    await User.findByIdAndDelete(rsvp.userId);
-                }
-            }
-            await RSVP.findByIdAndDelete(id);
-        }
-
-        // Also try to find by User ID just in case the ID passed was a User ID (fallback)
-        const user = await User.findById(id);
-        if (user) {
-            await RSVP.findOneAndDelete({ userId: id });
-            await AllowedGuest.updateOne(
-                { claimedBy: id },
-                { $set: { isClaimed: false, claimedBy: null } }
-            );
-            await User.findByIdAndDelete(id);
-        }
-
-        res.json({ success: true });
-    } catch (e) {
-        console.error("Delete failed", e);
-        res.status(500).json({ error: 'Delete failed' });
+    if (req.auth.role === 'client' && rsvp.clientId !== req.auth.clientId) {
+      return res.status(403).json({ error: 'RSVP belongs to another wedding' });
     }
+
+    await RSVP.findByIdAndDelete(id);
+
+    if (rsvp.userId) {
+      await User.updateOne(
+        { _id: rsvp.userId },
+        { is_registered: false, rsvp_data: null }
+      );
+      await AllowedGuest.updateOne(
+        { claimedBy: rsvp.userId },
+        { $set: { isClaimed: false, claimedBy: null } }
+      );
+    }
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('RSVP deletion failed', error);
+    return res.status(500).json({ error: 'Unable to delete RSVP' });
+  }
 };
 
 export const getAllRSVPs = async (req, res) => {
-    try {
-        const { clientId } = req.query;
-        if (!clientId) return res.status(400).json({ error: 'clientId required' });
-        const query = { clientId };
-        
-        // Populate User details
-        const rsvps = await RSVP.find(query).populate('userId', 'name access_code');
+  try {
+    const requestedClientId = req.query.clientId;
+    const clientId = req.auth.role === 'admin' ? requestedClientId : req.auth.clientId;
 
-        const parsed = rsvps.map(r => {
-            return {
-                ...r.data,
-                id: r._id, // Enforce correct ID
-                userId: r.userId?._id || r.userId, // Return User ID for updates
-                _userName: r.userId?.name || 'Unknown',
-                _code: r.userId?.access_code || '-'
-            };
-        });
+    if (!clientId) return res.status(400).json({ error: 'clientId required' });
 
-        res.json(parsed);
-    } catch (e) {
-        console.error(e);
-        res.status(500).json([]);
-    }
+    const rsvps = await RSVP.find({ clientId }).populate('userId', 'name');
+    const parsed = rsvps.map((rsvp) => ({
+      ...rsvp.data,
+      id: rsvp._id,
+      userId: rsvp.userId?._id || rsvp.userId,
+      _userName: rsvp.userId?.name || 'Unknown'
+    }));
+
+    return res.json(parsed);
+  } catch (error) {
+    console.error('RSVP list failed', error);
+    return res.status(500).json({ error: 'Unable to load RSVPs' });
+  }
 };
