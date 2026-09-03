@@ -1,8 +1,8 @@
 import type { Metadata, Viewport } from 'next';
 import './tokens.css';
 import './globals.css';
-import './design-system.css';
 import './carousel.css';
+import './design-system.css';
 
 export const metadata: Metadata = {
   title: 'Sweta & Shivpujan Wedding',
