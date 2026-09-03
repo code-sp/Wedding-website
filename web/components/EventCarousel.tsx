@@ -3,47 +3,63 @@
 import { useRef } from 'react';
 
 const events = [
-  { title: 'Ganesh Puja', note: 'A serene open-air beginning with ivory details, brass accents and sacred florals.' },
-  { title: 'Haldi', note: 'Warm turmeric, marigold and Mithila-inspired miniature styling.' },
-  { title: 'Mehendi', note: 'Emerald foliage, intricate mehendi motifs and elegant handcrafted textures.' },
-  { title: 'Matkor', note: 'Earth, water and Bihar wedding traditions interpreted as a cinematic diorama.' },
-  { title: 'Marwa', note: 'A richly layered Bihari mandap environment reserved for the traditional ceremony.' },
-  { title: 'Shubh Vivah', note: 'The grand wedding scene with canopy, mountains, pine forest and luminous stage.' }
+  {
+    name: 'Ganesh Puja',
+    eyebrow: 'Blessings · Devotion · Faith',
+    copy: 'An open-air ivory altar with brass diyas, white lotus accents and a mountain-forest backdrop.'
+  },
+  {
+    name: 'Haldi & Matkor',
+    eyebrow: 'Turmeric · Earth · Ritual',
+    copy: 'Warm saffron, marigold and handmade Mithila details shaped into a playful miniature celebration.'
+  },
+  {
+    name: 'Mehendi',
+    eyebrow: 'Artistry · Tradition · Love',
+    copy: 'Intricate mehendi-inspired geometry, emerald foliage and champagne-gold architectural accents.'
+  },
+  {
+    name: 'Shubh Vivah',
+    eyebrow: 'Together · Forever · शुभ विवाह',
+    copy: 'The grand wedding scene with a Bihar-inspired mandap, cinematic mountain depth and premium ivory materials.'
+  }
 ];
 
 export default function EventCarousel() {
-  const track = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
 
   const move = (direction: number) => {
-    track.current?.scrollBy({ left: direction * Math.max(280, track.current.clientWidth * 0.72), behavior: 'smooth' });
+    trackRef.current?.scrollBy({
+      left: direction * Math.min(420, window.innerWidth * 0.78),
+      behavior: 'smooth'
+    });
   };
 
   return (
     <section className="section" id="events" aria-labelledby="events-title">
       <div className="container">
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'end', marginBottom: '1rem' }}>
-          <div>
-            <span className="eyebrow">Celebration journey</span>
-            <h2 id="events-title">Wedding events in miniature worlds</h2>
-          </div>
-          <div className="actions" aria-label="Carousel controls">
-            <button className="button button-secondary" type="button" onClick={() => move(-1)} aria-label="Previous events">←</button>
-            <button className="button button-secondary" type="button" onClick={() => move(1)} aria-label="Next events">→</button>
-          </div>
+        <div className="eyebrow">Celebration journey</div>
+        <h2 id="events-title">Wedding events in miniature worlds.</h2>
+        <div className="carousel-controls" aria-label="Event carousel controls">
+          <button className="carousel-arrow" type="button" onClick={() => move(-1)} aria-label="Previous event">←</button>
+          <button className="carousel-arrow" type="button" onClick={() => move(1)} aria-label="Next event">→</button>
         </div>
-        <div
-          ref={track}
-          style={{ display: 'grid', gridAutoFlow: 'column', gridAutoColumns: 'minmax(17rem, 32%)', gap: '1rem', overflowX: 'auto', scrollSnapType: 'x mandatory', padding: '.5rem 0 1.25rem' }}
-        >
+        <div className="carousel-track" ref={trackRef}>
           {events.map((event, index) => (
-            <article
-              key={event.title}
-              className="card"
-              style={{ minHeight: '20rem', scrollSnapAlign: 'start', display: 'flex', flexDirection: 'column', justifyContent: 'end', position: 'relative', overflow: 'hidden', background: `linear-gradient(155deg, rgba(122,31,61,${0.08 + index * 0.012}), rgba(255,250,242,.92) 48%, rgba(199,166,106,.48))` }}
-            >
-              <span className="eyebrow">0{index + 1}</span>
-              <h3>{event.title}</h3>
-              <p>{event.note}</p>
+            <article className="event-slide" key={event.name}>
+              <div className="event-visual" aria-hidden="true">
+                <div className="event-orb" />
+                <div className="event-stage" />
+                <div className="event-board">
+                  <span>{String(index + 1).padStart(2, '0')}</span>
+                  <strong>{event.name}</strong>
+                </div>
+              </div>
+              <div className="event-copy">
+                <div className="eyebrow">{event.eyebrow}</div>
+                <h3>{event.name}</h3>
+                <p>{event.copy}</p>
+              </div>
             </article>
           ))}
         </div>
