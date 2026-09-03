@@ -9,6 +9,10 @@ export function DioramaHero() {
     const el = worldRef.current;
     if (!el) return;
 
+    const canTilt = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!canTilt || reduceMotion) return;
+
     const onMove = (event: PointerEvent) => {
       const rect = el.getBoundingClientRect();
       const x = (event.clientX - rect.left) / rect.width - 0.5;
@@ -16,25 +20,24 @@ export function DioramaHero() {
       el.style.transform = `rotateX(${y * -3.5}deg) rotateY(${x * 5}deg)`;
     };
 
-    const onLeave = () => {
+    const reset = () => {
       el.style.transform = 'rotateX(0deg) rotateY(0deg)';
     };
 
-    el.addEventListener('pointermove', onMove);
-    el.addEventListener('pointerleave', onLeave);
+    el.addEventListener('pointermove', onMove, { passive: true });
+    el.addEventListener('pointerleave', reset);
+    el.addEventListener('pointercancel', reset);
+
     return () => {
       el.removeEventListener('pointermove', onMove);
-      el.removeEventListener('pointerleave', onLeave);
+      el.removeEventListener('pointerleave', reset);
+      el.removeEventListener('pointercancel', reset);
     };
   }, []);
 
   return (
     <div className="diorama-frame" aria-label="Interactive miniature wedding diorama">
-      <div
-        ref={worldRef}
-        className="diorama-world"
-        style={{ transition: 'transform 220ms ease-out' }}
-      >
+      <div ref={worldRef} className="diorama-world">
         <div className="diorama-sky" />
         <div className="mountain back" />
         <div className="mountain front" />
