@@ -29,11 +29,21 @@ export const sessionLogin = async (req, res) => {
       return res.status(400).json({ error: 'Invalid credential format' });
     }
 
-    const user = await User.findOne({ access_code: normalizedCode });
+    let user = await User.findOne({ access_code: normalizedCode });
     if (!user) return res.status(401).json({ error: 'Invalid credentials' });
 
     if (user.role !== 'admin' && user.clientId && clientId !== 'default_client' && user.clientId !== clientId) {
       return res.status(403).json({ error: 'Account does not belong to this wedding' });
+    }
+
+    // Migration fallback: old guest codes are consumed atomically on first successful use.
+    if (user.role === 'user') {
+      user = await User.findOneAndUpdate(
+        { _id: user._id, access_code: normalizedCode },
+        { $unset: { access_code: 1, old_access_code: 1 } },
+        { new: true }
+      );
+      if (!user) return res.status(401).json({ error: 'Invitation code has already been used' });
     }
 
     const session = await createRefreshSession(res, user, req.get('user-agent') || '');
