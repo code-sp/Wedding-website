@@ -4,6 +4,7 @@ import {
   createRefreshSession,
   rotateRefreshSession,
   revokeRefreshSession,
+  revokeSessionById,
   clearSession
 } from '../security/session.js';
 
@@ -34,8 +35,8 @@ export const sessionLogin = async (req, res) => {
       return res.status(403).json({ error: 'Account does not belong to this wedding' });
     }
 
-    issueAccessToken(res, user);
-    await createRefreshSession(res, user, req.get('user-agent') || '');
+    const session = await createRefreshSession(res, user, req.get('user-agent') || '');
+    issueAccessToken(res, user, session._id);
     return res.json({ user: toSessionUser(user) });
   } catch (error) {
     console.error('Session login failed', error);
@@ -61,7 +62,7 @@ export const refreshSession = async (req, res) => {
       return res.status(401).json({ error: 'Session user no longer exists' });
     }
 
-    issueAccessToken(res, user);
+    issueAccessToken(res, user, rotated._id);
     return res.json({ user: toSessionUser(user) });
   } catch (error) {
     console.error('Session refresh failed', error);
@@ -79,7 +80,10 @@ export const getSession = async (req, res) => {
 };
 
 export const sessionLogout = async (req, res) => {
-  await revokeRefreshSession(req.cookies?.refresh_token);
+  await Promise.all([
+    revokeRefreshSession(req.cookies?.refresh_token),
+    revokeSessionById(req.auth?.sessionId)
+  ]);
   clearSession(res);
   return res.status(204).end();
 };
