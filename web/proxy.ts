@@ -5,6 +5,13 @@ const publicPaths = new Set(['/login']);
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // API requests must reach the Next.js rewrite and then Express.
+  // Express owns authentication/authorization for /api/*.
+  if (pathname === '/api' || pathname.startsWith('/api/')) {
+    return NextResponse.next();
+  }
+
   const isPublic = publicPaths.has(pathname);
   const accessToken = request.cookies.get('access_token')?.value;
 
@@ -46,5 +53,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif)$).*)']
+  matcher: ['/((?!api(?:/|$)|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif)$).*)']
 };
