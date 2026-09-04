@@ -16,7 +16,7 @@ test('Story edit/save/delete and Settings autosave work', async ({ page }) => {
   );
   await page.getByRole('button', { name: /Save Changes/i }).click();
   await storySave;
-  await expect(page.getByText('Runtime QA Story')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Runtime QA Story' })).toBeVisible();
 
   const storyDelete = page.waitForResponse(
     response => response.url().includes('/api/content/stories') &&
@@ -24,7 +24,7 @@ test('Story edit/save/delete and Settings autosave work', async ({ page }) => {
   );
   await page.getByTitle('Delete Chapter').first().click({ force: true });
   await storyDelete;
-  await expect(page.getByText('Runtime QA Story')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Runtime QA Story' })).toHaveCount(0);
 
   await page.goto(`${LEGACY}/settings`);
   const settingsSave = page.waitForResponse(
