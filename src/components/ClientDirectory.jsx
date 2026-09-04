@@ -94,6 +94,29 @@ const ClientDirectory = () => {
         }
     };
 
+    const handleIssueInvite = async (client) => {
+        if (!client?.ownerId) {
+            setStatus({ type: 'error', message: 'This portal does not have an organiser account.' });
+            return;
+        }
+        try {
+            const res = await api.createInvitation(client.ownerId, 72);
+            if (res?.invitation?.token) {
+                setStatus({
+                    type: 'success',
+                    message: `New organiser invitation created for ${client.name}.`,
+                    token: res.invitation.token,
+                    loginFragment: res.invitation.loginFragment,
+                    clientId: client._id || client.id
+                });
+                return;
+            }
+            setStatus({ type: 'error', message: res?.error || 'Unable to issue invitation.' });
+        } catch (error) {
+            setStatus({ type: 'error', message: 'Unable to issue invitation.' });
+        }
+    };
+
     const handleDelete = async (client) => {
         const confirmed = window.confirm(
             `Are you sure you want to permanently delete "${client.name}"?\n\nThis will remove the portal and ALL associated data. This action cannot be undone.`
@@ -374,8 +397,17 @@ const ClientDirectory = () => {
                                                         <Key size={11} className="text-white/30 shrink-0" />
                                                         <span className="text-[9px] uppercase tracking-widest text-white/30 font-bold mr-1 shrink-0">Credential</span>
                                                         <span className="flex-1 text-[10px] text-white/45 truncate">
-                                                            {client.hasLegacyCredential ? 'Legacy credential present — issue a new invite' : 'Not stored'}
+                                                            {client.hasLegacyCredential ? 'Legacy credential retires on next login' : 'Secret not stored'}
                                                         </span>
+                                                        {client.ownerId && (
+                                                            <button
+                                                                onClick={() => handleIssueInvite(client)}
+                                                                className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-[9px] font-bold uppercase tracking-wider text-white/60 hover:text-white transition-colors shrink-0"
+                                                                title="Issue a new single-use organiser invitation"
+                                                            >
+                                                                Issue Invite
+                                                            </button>
+                                                        )}
                                                     </div>
 
                                                     {/* Portal URL row */}
