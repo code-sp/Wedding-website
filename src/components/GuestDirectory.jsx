@@ -104,7 +104,7 @@ const GuestDirectory = () => {
     const handleGuestUpdate = async (e) => {
         e.preventDefault();
         if (!editingGuest || !editingGuest.name.trim()) return;
-        await api.updateGuest(editingGuest.id, editingGuest.name.trim());
+        await api.updateGuest(editingGuest.id, editingGuest.name.trim(), clientId);
         setEditingGuest(null);
         refresh();
     };
@@ -114,7 +114,7 @@ const GuestDirectory = () => {
             if (type === 'rsvp') {
                 await deleteRSVP(id);
             } else if (type === 'guest') {
-                await api.deleteGuest(id);
+                await api.deleteGuest(id, clientId);
             } else if (type === 'token_and_guest') {
                 const { userId, guestId } = id;
                 if (userId) {
@@ -122,7 +122,7 @@ const GuestDirectory = () => {
                     if (!res.success) console.error('Failed to delete user', res);
                 }
                 if (guestId) {
-                    const guestRes = await api.deleteGuest(guestId);
+                    const guestRes = await api.deleteGuest(guestId, clientId);
                     if (!guestRes.success && guestRes.error !== 'Guest not found') {
                         console.error('Failed to delete guest', guestRes);
                     }
