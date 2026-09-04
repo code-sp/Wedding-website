@@ -42,7 +42,7 @@ const InvitationTokenSchema = new mongoose.Schema({
   userId: { type: String, ref: 'User', required: true, index: true },
   clientId: { type: String, required: true, index: true },
   tokenHash: { type: String, required: true, unique: true },
-  purpose: { type: String, enum: ['invite', 'magic_link'], default: 'invite' },
+  purpose: { type: String, enum: ['invite', 'magic_link', 'portal-invite'], default: 'invite' },
   createdBy: { type: String, default: null },
   createdAt: { type: Date, default: Date.now },
   expiresAt: { type: Date, required: true, index: { expires: 0 } },
@@ -59,6 +59,27 @@ const RSVPSchema = new mongoose.Schema({
   timestamp: { type: Date, default: Date.now }
 }, { _id: false });
 RSVPSchema.index({ userId: 1, clientId: 1 }, { unique: true });
+
+const SeatReservationSchema = new mongoose.Schema({
+  _id: String,
+  clientId: { type: String, required: true, index: true },
+  userId: { type: String, ref: 'User', required: true, index: true },
+  seatNumber: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now }
+}, { _id: false });
+SeatReservationSchema.index({ clientId: 1, seatNumber: 1 }, { unique: true });
+SeatReservationSchema.index({ clientId: 1, userId: 1 });
+
+const RoomReservationSchema = new mongoose.Schema({
+  _id: String,
+  clientId: { type: String, required: true, index: true },
+  userId: { type: String, ref: 'User', required: true, index: true },
+  roomId: { type: String, required: true },
+  slot: { type: Number, required: true, min: 1 },
+  createdAt: { type: Date, default: Date.now }
+}, { _id: false });
+RoomReservationSchema.index({ clientId: 1, userId: 1 }, { unique: true });
+RoomReservationSchema.index({ clientId: 1, roomId: 1, slot: 1 }, { unique: true });
 
 const ClientSchema = new mongoose.Schema({
   _id: { type: String, required: true },
@@ -102,6 +123,8 @@ export const User = mongoose.model('User', UserSchema);
 export const Session = mongoose.model('Session', SessionSchema);
 export const InvitationToken = mongoose.model('InvitationToken', InvitationTokenSchema);
 export const RSVP = mongoose.model('RSVP', RSVPSchema);
+export const SeatReservation = mongoose.model('SeatReservation', SeatReservationSchema);
+export const RoomReservation = mongoose.model('RoomReservation', RoomReservationSchema);
 export const Asset = mongoose.model('Asset', AssetSchema);
 export const Content = mongoose.model('Content', ContentSchema);
 export const AllowedGuest = mongoose.model('AllowedGuest', AllowedGuestSchema);
