@@ -1,207 +1,302 @@
 const API_BASE = '/api';
 
-export const api = {
-    // Auth
-    login: async (code, clientId) => {
-        const res = await fetch(`${API_BASE}/login`, {
+class ApiError extends Error {
+    constructor(status, message, code) {
+        super(message);
+        this.name = 'ApiError';
+        this.status = status;
+        this.code = code;
+    }
+}
+
+let refreshPromise = null;
+
+const getCookie = (name) => {
+    if (typeof document === 'undefined') return '';
+    const prefix = `${encodeURIComponent(name)}=`;
+    const entry = document.cookie.split('; ').find(value => value.startsWith(prefix));
+    return entry ? decodeURIComponent(entry.slice(prefix.length)) : '';
+};
+
+const isMutation = (method = 'GET') => !['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase());
+
+const buildHeaders = (path, init = {}) => {
+    const headers = new Headers(init.headers || {});
+    if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
+        headers.set('Content-Type', 'application/json');
+    }
+
+    if (isMutation(init.method) && !['/session/login', '/session/exchange'].includes(path)) {
+        const csrf = getCookie('csrf_token');
+        if (csrf) headers.set('X-CSRF-Token', csrf);
+    }
+    return headers;
+};
+
+const parseResponse = async (res) => {
+    if (res.status === 204) return undefined;
+    return res.json().catch(() => ({}));
+};
+
+const refreshSession = async () => {
+    if (!refreshPromise) {
+        const path = '/session/refresh';
+        refreshPromise = fetch(`${API_BASE}${path}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            headers: buildHeaders(path, { method: 'POST' })
+        })
+            .then(res => res.ok)
+            .catch(() => false)
+            .finally(() => { refreshPromise = null; });
+    }
+    return refreshPromise;
+};
+
+const request = async (path, init = {}, allowRefresh = true) => {
+    const res = await fetch(`${API_BASE}${path}`, {
+        ...init,
+        credentials: 'include',
+        headers: buildHeaders(path, init)
+    });
+
+    if (
+        res.status === 401 &&
+        allowRefresh &&
+        !['/session/login', '/session/exchange', '/session/refresh'].includes(path)
+    ) {
+        const refreshed = await refreshSession();
+        if (refreshed) return request(path, init, false);
+    }
+
+    const payload = await parseResponse(res);
+    if (!res.ok) {
+        throw new ApiError(res.status, payload?.error || 'Request failed', payload?.code);
+    }
+    return payload;
+};
+
+const normalizeSessionUser = (user = {}) => ({
+    ...user,
+    isRegistered: Boolean(user.isRegistered ?? user.isProfileComplete),
+    profileComplete: Boolean(user.isProfileComplete)
+});
+
+const loginWithLegacyOrInvitation = async (code, clientId) => {
+    try {
+        const result = await request('/session/login', {
+            method: 'POST',
             body: JSON.stringify({ code, clientId })
-        });
-        return res.json();
-    },
-
-    completeClientRegistration: async (userId, name, formData) => {
-        const res = await fetch(`${API_BASE}/complete-client-registration`, {
+        }, false);
+        return { success: true, user: normalizeSessionUser(result.user) };
+    } catch (error) {
+        if (error?.status !== 401) throw error;
+        const exchanged = await request('/session/exchange', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId, name, formData })
-        });
-        return res.json();
+            body: JSON.stringify({ token: code })
+        }, false);
+        return { success: true, user: normalizeSessionUser(exchanged.user), invitationExchanged: true };
+    }
+};
+
+export const api = {
+    login: async (code, clientId = 'default_client') => {
+        try {
+            return await loginWithLegacyOrInvitation(String(code || '').trim(), clientId);
+        } catch (error) {
+            return { success: false, error: error?.message || 'Invalid or expired invitation' };
+        }
     },
 
-    // Content (Events, Gallery, etc.)
+    session: async () => {
+        const result = await request('/session');
+        return { ...result, user: normalizeSessionUser(result.user) };
+    },
+
+    logout: () => request('/session/logout', { method: 'POST' }, false),
+
+    exchangeInvitation: async (token) => {
+        const result = await request('/session/exchange', {
+            method: 'POST',
+            body: JSON.stringify({ token })
+        }, false);
+        return { ...result, user: normalizeSessionUser(result.user) };
+    },
+
+    profile: () => request('/profile'),
+
+    completeProfile: (profile) => request('/profile', {
+        method: 'PUT',
+        body: JSON.stringify(profile)
+    }),
+
+    completeClientRegistration: async () => ({
+        success: false,
+        error: 'Secure organiser onboarding now happens through the profile flow.'
+    }),
+
     getContent: async (key, clientId = 'default_client') => {
         try {
-            const res = await fetch(`${API_BASE}/content/${key}?clientId=${clientId}`);
-            if (!res.ok) return null;
-            return res.json();
-        } catch (e) {
-            console.error(`Failed to fetch ${key}`, e);
+            return await request(`/content/${encodeURIComponent(key)}?clientId=${encodeURIComponent(clientId)}`);
+        } catch (error) {
+            console.error(`Failed to fetch ${key}`, error);
             return null;
         }
     },
 
-    updateContent: async (key, data, clientId = 'default_client') => {
-        const res = await fetch(`${API_BASE}/content/${key}?clientId=${clientId}`, {
-            method: 'POST', // or PUT
-            headers: { 'Content-Type': 'application/json' },
+    updateContent: (key, data, clientId = 'default_client') =>
+        request(`/content/${encodeURIComponent(key)}?clientId=${encodeURIComponent(clientId)}`, {
+            method: 'POST',
             body: JSON.stringify(data)
-        });
-        return res.json();
-    },
+        }),
 
-    // RSVPs
     submitRSVP: async (userId, data, clientId) => {
         try {
-            const res = await fetch(`${API_BASE}/rsvp`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId, data, clientId })
-            });
-            return await res.json();
-        } catch (e) {
-            console.error(e);
-            return { success: false };
+            const body = { data };
+            if (userId) body.userId = userId;
+            if (clientId) body.clientId = clientId;
+            return await request('/rsvp', { method: 'POST', body: JSON.stringify(body) });
+        } catch (error) {
+            console.error(error);
+            return { success: false, error: error?.message || 'Unable to save RSVP' };
         }
     },
 
     deleteRSVP: async (id) => {
         try {
-            const res = await fetch(`${API_BASE}/rsvp/${id}`, {
-                method: 'DELETE',
-            });
-            return await res.json();
-        } catch (e) {
-            console.error(e);
-            return { success: false };
+            return await request(`/rsvp/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        } catch (error) {
+            console.error(error);
+            return { success: false, error: error?.message || 'Unable to delete RSVP' };
         }
     },
 
-    // User / Token Management
     getUsers: async (clientId) => {
         try {
-            const url = clientId ? `${API_BASE}/users?clientId=${clientId}` : `${API_BASE}/users`;
-            const res = await fetch(url);
-            return await res.json();
-        } catch (e) {
-            console.error(e);
+            const query = clientId ? `?clientId=${encodeURIComponent(clientId)}` : '';
+            return await request(`/users${query}`);
+        } catch (error) {
+            console.error(error);
             return [];
         }
     },
 
-    // Guest List (Whitelist)
     getGuests: async (clientId) => {
         try {
-            const url = clientId ? `${API_BASE}/guests?clientId=${clientId}` : `${API_BASE}/guests`;
-            const res = await fetch(url);
-            return await res.json();
-        } catch (e) {
-            console.error(e);
+            const query = clientId ? `?clientId=${encodeURIComponent(clientId)}` : '';
+            return await request(`/guests${query}`);
+        } catch (error) {
+            console.error(error);
             return [];
         }
     },
 
     addGuest: async (name, clientId) => {
         try {
-            const res = await fetch(`${API_BASE}/guests`, {
+            return await request('/guests', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name, clientId })
             });
-            return await res.json();
-        } catch (e) {
-            console.error(e);
-            return { success: false };
+        } catch (error) {
+            return { success: false, error: error?.message || 'Unable to add guest' };
         }
     },
 
     updateGuest: async (id, name) => {
         try {
-            const res = await fetch(`${API_BASE}/guests/${id}`, {
+            return await request(`/guests/${encodeURIComponent(id)}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name })
             });
-            return await res.json();
-        } catch (e) {
-            console.error(e);
-            return { success: false };
+        } catch (error) {
+            return { success: false, error: error?.message || 'Unable to update guest' };
         }
     },
 
     deleteGuest: async (id) => {
         try {
-            const res = await fetch(`${API_BASE}/guests/${id}`, {
-                method: 'DELETE',
-            });
-            return await res.json();
-        } catch (e) {
-            console.error(e);
-            return { success: false };
+            return await request(`/guests/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        } catch (error) {
+            return { success: false, error: error?.message || 'Unable to delete guest' };
         }
     },
 
-    registerGuest: async (name, globalCode, clientId) => {
+    registerGuest: async (_name, invitationToken, _clientId) => {
         try {
-            const res = await fetch(`${API_BASE}/register`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, globalCode, clientId })
-            });
-            return await res.json();
-        } catch (e) {
-            console.error(e);
-            return { success: false, error: 'Connection error' };
+            const result = await api.exchangeInvitation(invitationToken);
+            return { success: true, user: result.user };
+        } catch (error) {
+            return { success: false, error: error?.message || 'Invitation is invalid or expired' };
         }
     },
 
     createUser: async (userData) => {
         try {
-            const res = await fetch(`${API_BASE}/users`, {
+            const result = await request('/users', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(userData)
             });
-            return await res.json();
-        } catch (e) {
-            console.error(e);
-            return { success: false };
+            const credential = result?.invitation?.token || result?.clientAccessCode || null;
+            return {
+                ...result,
+                user: result?.user ? {
+                    ...result.user,
+                    access_code: credential,
+                    accessCode: credential,
+                    _invitation: result.invitation || null
+                } : result?.user
+            };
+        } catch (error) {
+            return { success: false, error: error?.message || 'Unable to create user' };
+        }
+    },
+
+    createInvitation: async (userId, expiresInHours = 72) => {
+        try {
+            return await request('/invitations', {
+                method: 'POST',
+                body: JSON.stringify({ userId, expiresInHours })
+            });
+        } catch (error) {
+            return { success: false, error: error?.message || 'Unable to create invitation' };
         }
     },
 
     deleteUser: async (id) => {
         try {
-            const res = await fetch(`${API_BASE}/users/${id}`, {
-                method: 'DELETE',
-            });
-            return await res.json();
-        } catch (e) {
-            console.error(e);
-            return { success: false };
+            return await request(`/users/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        } catch (error) {
+            return { success: false, error: error?.message || 'Unable to delete user' };
         }
     },
 
     getAllRSVPs: async (clientId) => {
-        const url = clientId ? `${API_BASE}/rsvps?clientId=${clientId}` : `${API_BASE}/rsvps`;
-        const res = await fetch(url);
-        return res.json();
+        try {
+            const query = clientId ? `?clientId=${encodeURIComponent(clientId)}` : '';
+            return await request(`/rsvps${query}`);
+        } catch (error) {
+            if (error?.status === 401 || error?.status === 403 || error?.status === 428) return [];
+            throw error;
+        }
     },
 
-    // Clients (Global Admin)
     getClients: async () => {
-        const res = await fetch(`${API_BASE}/clients`);
-        return res.json();
+        try {
+            return await request('/clients');
+        } catch (error) {
+            console.error(error);
+            return [];
+        }
     },
 
-    getGlobalStats: async () => {
-        const res = await fetch(`${API_BASE}/clients/stats`);
-        return res.json();
-    },
+    getGlobalStats: () => request('/clients/stats'),
 
-    createClient: async (id, name, details = {}) => {
-        const res = await fetch(`${API_BASE}/clients`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id, name, ...details })
-        });
-        return res.json();
-    },
+    createClient: (id, name, details = {}) => request('/clients', {
+        method: 'POST',
+        body: JSON.stringify({ id, name, ...details })
+    }),
 
-    deleteClient: async (id) => {
-        const res = await fetch(`${API_BASE}/clients/${id}`, {
-            method: 'DELETE'
-        });
-        return res.json();
-    }
+    deleteClient: (id) => request(`/clients/${encodeURIComponent(id)}`, { method: 'DELETE' })
 };
+
+export { ApiError };
