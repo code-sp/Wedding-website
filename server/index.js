@@ -48,6 +48,7 @@ app.get('/ping', (_req, res) => res.send('pong'));
 
 await connectDB();
 
+
 app.use('/api', sessionRoutes);
 app.use('/api', invitationRoutes);
 app.use('/api', assetRoutes);
