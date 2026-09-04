@@ -49,6 +49,12 @@ export const sessionLogin = async (req, res) => {
     const session = await createRefreshSession(res, user, req.get('user-agent') || '');
     issueAccessToken(res, user, session._id);
     issueCsrfToken(res);
+
+    // The first successful use of a legacy organiser credential retires it.
+    if (user.role === 'client' && user.access_code) {
+      await User.updateOne({ _id: user._id }, { $unset: { access_code: 1, old_access_code: 1 } });
+    }
+
     return res.json({ user: toSessionUser(user) });
   } catch (error) {
     console.error('Session login failed', error);
