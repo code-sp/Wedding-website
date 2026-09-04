@@ -35,7 +35,7 @@ export const updateContent = async (req, res) => {
       { upsert: true, new: true, runValidators: true }
     );
 
-    return res.json({ success: true });
+    return res.json({ success: true, value });
   } catch (error) {
     console.error('Content update failed', error);
     return res.status(500).json({ error: 'Unable to update content' });
