@@ -121,22 +121,8 @@ export const createClient = async (req, res) => {
       { key: 'moments', value: [] },
       { key: 'stories', value: [] },
       { key: 'home_data', value: defaults.defaultHomeData },
-      { key: 'contact_data', value: {
-        contactCards: [
-          { title: "Bride's Family", name: 'Client Contact', phone: '', email: '' },
-          { title: "Groom's Family", name: 'Client Contact', phone: '', email: '' }
-        ],
-        venueName: 'Your Venue',
-        venueAddress: '',
-        venueMapsLink: '',
-        faqs: []
-      }},
-      { key: 'client_settings', value: {
-        enabledTabs: ['home', 'story', 'events', 'moments', 'gallery', 'rsvp', 'contact', 'family_tree'],
-        customTabs: [],
-        rooms: [],
-        seatingConfig: []
-      }},
+      { key: 'contact_data', value: defaults.defaultContactData },
+      { key: 'client_settings', value: defaults.defaultClientSettings },
       { key: 'family_people', value: [] },
       { key: 'family_families', value: [] },
       { key: 'family_links', value: [] },
