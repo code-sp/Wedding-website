@@ -5,7 +5,7 @@ on:
     branches: [main]
 
 concurrency:
-  group: migration-v3-${{ github.head_ref || github.ref_name }}
+  group: migration-runtime-v1-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 permissions:
@@ -24,6 +24,18 @@ jobs:
       - run: npm install --ignore-scripts
       - name: Check server JavaScript syntax
         run: find server -name '*.js' -print0 | xargs -0 -n1 node --check
+
+  legacy:
+    name: Legacy Vite build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install --ignore-scripts
+      - run: npm run legacy:build
 
   nextjs:
     name: Next.js build
@@ -56,3 +68,90 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: flutter analyze
+
+  runtime:
+    name: Browser runtime regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ ping: 1 }).ok'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install application dependencies
+        run: |
+          npm install --ignore-scripts
+          npm --prefix web install --ignore-scripts
+          npm install --no-save @playwright/test@1.55.0
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Start API, legacy editor and Next.js
+        env:
+          NODE_ENV: development
+          PORT: 3000
+          MONGODB_URI: mongodb://127.0.0.1:27017/wedding-rsvp-runtime
+          CORS_ORIGINS: http://127.0.0.1:5173,http://127.0.0.1:3001
+          SESSION_SECRET: runtime-ci-session-secret-change-me-123456789
+          SERVER_API_URL: http://127.0.0.1:3000
+          NEXT_PUBLIC_API_BASE_URL: /api
+        run: |
+          node server/index.js > /tmp/wedding-server.log 2>&1 &
+          npm run legacy:web -- --host 127.0.0.1 > /tmp/wedding-legacy.log 2>&1 &
+          (cd web && npm run dev -- -H 127.0.0.1 -p 3001 > /tmp/wedding-next.log 2>&1) &
+
+          for url in             http://127.0.0.1:3000/api/health             http://127.0.0.1:5173             http://127.0.0.1:3001/login
+          do
+            ready=0
+            for attempt in $(seq 1 60); do
+              if curl --fail --silent --show-error "$url" > /dev/null; then
+                ready=1
+                break
+              fi
+              sleep 1
+            done
+            if [ "$ready" -ne 1 ]; then
+              echo "Service failed to start: $url"
+              cat /tmp/wedding-server.log || true
+              cat /tmp/wedding-legacy.log || true
+              cat /tmp/wedding-next.log || true
+              exit 1
+            fi
+          done
+
+      - name: Run browser regression suite
+        run: npx playwright test tests/e2e/runtime.spec.mjs --reporter=line
+
+      - name: Print runtime logs on failure
+        if: failure()
+        run: |
+          echo "===== Express ====="
+          cat /tmp/wedding-server.log || true
+          echo "===== Vite ====="
+          cat /tmp/wedding-legacy.log || true
+          echo "===== Next.js ====="
+          cat /tmp/wedding-next.log || true
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-runtime-report
+          path: |
+            test-results
+            playwright-report
+          if-no-files-found: ignore
