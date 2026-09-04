@@ -83,7 +83,7 @@ export const defaultStories = [
 ];
 
 export const defaultUsers = [
-    { id: 'admin', role: 'admin', name: 'Admin', access_code: 'admin123' }
+    { id: 'admin', role: 'admin', name: 'Admin', access_code: 'admin123', clientId: 'default_client', profile_complete: true, is_registered: true }
 ];
 
 export const defaultHomeData = {
