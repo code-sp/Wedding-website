@@ -165,7 +165,7 @@ export const ImageProvider = ({ children }) => {
             return result;
         } catch (err) {
             console.error(`[IMAGE_CONTEXT] ERROR: Failed to sync ${key}`, err);
-            throw err;
+            return { success: false, error: err };
         }
     };
 
@@ -181,7 +181,7 @@ export const ImageProvider = ({ children }) => {
             return result;
         } catch (error) {
             console.error(`[IMAGE_CONTEXT] ERROR: Failed to sync ${key} data to server:`, error);
-            throw error;
+            return { success: false, error };
         }
     };
 
