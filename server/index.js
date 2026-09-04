@@ -71,8 +71,11 @@ const seed = async () => {
     const contentKeys = [
       { key: 'events', value: defaults.defaultEvents },
       { key: 'gallery', value: defaults.defaultGalleryPhotos },
+      { key: 'moments', value: [] },
       { key: 'stories', value: defaults.defaultStories },
       { key: 'home_data', value: defaults.defaultHomeData },
+      { key: 'contact_data', value: defaults.defaultContactData },
+      { key: 'client_settings', value: defaults.defaultClientSettings },
       { key: 'family_people', value: [] },
       { key: 'family_families', value: [] },
       { key: 'family_links', value: [] },
