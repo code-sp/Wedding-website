@@ -170,10 +170,11 @@ export const api = {
 
     updateContent: async (key, data, clientId = 'default_client') => {
         const normalized = await materializeImageAssets(data);
-        return request(`/content/${encodeURIComponent(key)}?clientId=${encodeURIComponent(clientId)}`, {
+        const result = await request(`/content/${encodeURIComponent(key)}?clientId=${encodeURIComponent(clientId)}`, {
             method: 'POST',
             body: JSON.stringify(normalized)
         });
+        return { ...result, value: normalized };
     },
 
     uploadImage: async (dataUrl) => ({
