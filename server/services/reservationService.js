@@ -141,6 +141,44 @@ export const stageRoomReservation = async ({ clientId, userId, requestedRoomId }
   const available = Math.max(0, Math.min(500, Number.parseInt(room.available, 10) || 0));
   if (!available) throw conflict('The selected room is no longer available', 'ROOM_UNAVAILABLE');
 
+  if (current) {
+    const previous = {
+      roomId: current.roomId,
+      slot: current.slot
+    };
+    let assignedSlot = null;
+
+    for (let slot = 1; slot <= available; slot += 1) {
+      try {
+        const result = await RoomReservation.updateOne(
+          { _id: current._id, clientId, userId },
+          { $set: { roomId: requested, slot } }
+        );
+        if (result.matchedCount === 1) {
+          assignedSlot = slot;
+          break;
+        }
+      } catch (error) {
+        if (error?.code !== 11000) throw error;
+      }
+    }
+
+    if (!assignedSlot) {
+      throw conflict('The selected room is no longer available', 'ROOM_UNAVAILABLE');
+    }
+
+    return {
+      assignmentLabel: `${room.name || 'Room'} #${assignedSlot}`,
+      async finalize() {},
+      async rollback() {
+        await RoomReservation.updateOne(
+          { _id: current._id, clientId, userId },
+          { $set: previous }
+        );
+      }
+    };
+  }
+
   let acquired = null;
   for (let slot = 1; slot <= available; slot += 1) {
     try {
@@ -161,9 +199,7 @@ export const stageRoomReservation = async ({ clientId, userId, requestedRoomId }
 
   return {
     assignmentLabel: `${room.name || 'Room'} #${acquired.slot}`,
-    async finalize() {
-      if (current) await RoomReservation.deleteOne({ _id: current._id, userId });
-    },
+    async finalize() {},
     async rollback() {
       await RoomReservation.deleteOne({ _id: acquired._id, userId });
     }
