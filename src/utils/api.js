@@ -233,20 +233,21 @@ export const api = {
         }
     },
 
-    updateGuest: async (id, name) => {
+    updateGuest: async (id, name, clientId) => {
         try {
             return await request(`/guests/${encodeURIComponent(id)}`, {
                 method: 'PUT',
-                body: JSON.stringify({ name })
+                body: JSON.stringify({ name, clientId })
             });
         } catch (error) {
             return { success: false, error: error?.message || 'Unable to update guest' };
         }
     },
 
-    deleteGuest: async (id) => {
+    deleteGuest: async (id, clientId) => {
         try {
-            return await request(`/guests/${encodeURIComponent(id)}`, { method: 'DELETE' });
+            const query = clientId ? `?clientId=${encodeURIComponent(clientId)}` : '';
+            return await request(`/guests/${encodeURIComponent(id)}${query}`, { method: 'DELETE' });
         } catch (error) {
             return { success: false, error: error?.message || 'Unable to delete guest' };
         }
