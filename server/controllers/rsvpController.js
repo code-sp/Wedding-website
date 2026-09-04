@@ -91,7 +91,7 @@ const normalizeRSVP = (data, fallbackName, requireContact) => {
 
 const resolveTargetUser = async (req, data) => {
   if (req.auth.role === 'user') {
-    return User.findById(req.auth.userId);
+    return { user: await User.findById(req.auth.userId), created: false };
   }
 
   const requestedUserId = req.body.userId;
@@ -99,7 +99,7 @@ const resolveTargetUser = async (req, data) => {
     const user = await User.findById(requestedUserId);
     if (!user) return null;
     if (req.auth.role === 'client' && user.clientId !== req.auth.clientId) return null;
-    return user;
+    return { user, created: false };
   }
 
   const clientId = req.auth.role === 'admin'
@@ -108,7 +108,7 @@ const resolveTargetUser = async (req, data) => {
 
   if (!clientId) return null;
 
-  return User.create({
+  const user = await User.create({
     _id: `user_manual_${crypto.randomUUID()}`,
     role: 'user',
     clientId,
@@ -116,6 +116,7 @@ const resolveTargetUser = async (req, data) => {
     profile_complete: true,
     is_registered: false
   });
+  return { user, created: true };
 };
 
 export const getMyRSVP = async (req, res) => {
@@ -140,9 +141,14 @@ export const submitRSVP = async (req, res) => {
   let seatStage = null;
   let roomStage = null;
   let persisted = false;
+  let targetUser = null;
+  let createdManualUser = false;
 
   try {
-    const user = await resolveTargetUser(req, req.body?.data);
+    const resolved = await resolveTargetUser(req, req.body?.data);
+    targetUser = resolved?.user || null;
+    createdManualUser = Boolean(resolved?.created);
+    const user = targetUser;
     if (!user) return res.status(403).json({ error: 'RSVP identity could not be verified' });
 
     const data = normalizeRSVP(req.body.data, user.name, req.auth.role === 'user');
@@ -198,6 +204,9 @@ export const submitRSVP = async (req, res) => {
         seatStage?.rollback?.(),
         roomStage?.rollback?.()
       ]);
+      if (createdManualUser && targetUser?._id) {
+        await User.deleteOne({ _id: targetUser._id, is_registered: false });
+      }
     }
     if (error?.status) return res.status(error.status).json({ error: error.message, code: error.code });
     console.error('RSVP submission failed', error);
