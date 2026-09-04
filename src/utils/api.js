@@ -76,6 +76,30 @@ const request = async (path, init = {}, allowRefresh = true) => {
     return payload;
 };
 
+const uploadImageDataUrl = async (dataUrl) => {
+    const result = await request('/assets', {
+        method: 'POST',
+        body: JSON.stringify({ dataUrl })
+    });
+    return result.url;
+};
+
+const materializeImageAssets = async (value) => {
+    if (typeof value === 'string') {
+        return value.startsWith('data:image/') ? uploadImageDataUrl(value) : value;
+    }
+    if (Array.isArray(value)) {
+        return Promise.all(value.map(materializeImageAssets));
+    }
+    if (value && typeof value === 'object') {
+        const entries = await Promise.all(
+            Object.entries(value).map(async ([key, child]) => [key, await materializeImageAssets(child)])
+        );
+        return Object.fromEntries(entries);
+    }
+    return value;
+};
+
 const normalizeSessionUser = (user = {}) => ({
     ...user,
     isRegistered: Boolean(user.isRegistered ?? user.isProfileComplete),
@@ -144,11 +168,17 @@ export const api = {
         }
     },
 
-    updateContent: (key, data, clientId = 'default_client') =>
-        request(`/content/${encodeURIComponent(key)}?clientId=${encodeURIComponent(clientId)}`, {
+    updateContent: async (key, data, clientId = 'default_client') => {
+        const normalized = await materializeImageAssets(data);
+        return request(`/content/${encodeURIComponent(key)}?clientId=${encodeURIComponent(clientId)}`, {
             method: 'POST',
-            body: JSON.stringify(data)
-        }),
+            body: JSON.stringify(normalized)
+        });
+    },
+
+    uploadImage: async (dataUrl) => ({
+        url: await uploadImageDataUrl(dataUrl)
+    }),
 
     submitRSVP: async (userId, data, clientId) => {
         try {
