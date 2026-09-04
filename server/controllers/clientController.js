@@ -164,12 +164,14 @@ export const createClient = async (req, res) => {
     console.error('Client creation failed', error);
 
     if (clientId) {
+      const rollbackUsers = await User.find({ clientId }).select('_id');
+      const rollbackUserIds = rollbackUsers.map((user) => user._id);
       await Promise.allSettled([
         Client.deleteOne({ _id: clientId }),
         Content.deleteMany({ clientId }),
         AllowedGuest.deleteMany({ clientId }),
         RSVP.deleteMany({ clientId }),
-        Session.deleteMany({ userId: { $regex: '^user_' } }),
+        Session.deleteMany({ userId: { $in: rollbackUserIds } }),
         InvitationToken.deleteMany({ clientId }),
         Asset.deleteMany({ clientId }),
         User.deleteMany({ clientId })
