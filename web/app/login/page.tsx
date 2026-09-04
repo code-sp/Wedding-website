@@ -12,6 +12,7 @@ export default function LoginPage() {
   const router = useRouter();
   const { showToast } = useToast();
   const [code, setCode] = useState('');
+  const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -22,6 +23,7 @@ export default function LoginPage() {
   };
 
   useEffect(() => {
+    setReady(true);
     const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
     const invite = params.get('invite');
     if (!invite) return;
@@ -97,9 +99,9 @@ export default function LoginPage() {
             />
           </label>
           {error ? <div className={styles.error} role="alert">{error}</div> : null}
-          <button className={styles.submit} type="submit" disabled={loading}>
+          <button className={styles.submit} type="submit" disabled={!ready || loading}>
             {loading ? <span className="inline-spinner" aria-hidden="true" /> : null}
-            <span>{loading ? 'Opening invitation…' : 'Enter wedding'}</span>
+            <span>{loading ? 'Opening invitation…' : ready ? 'Enter wedding' : 'Preparing secure sign-in…'}</span>
           </button>
           <span className="sr-only" aria-live="polite">{loading ? 'Opening your invitation securely.' : ''}</span>
         </form>
