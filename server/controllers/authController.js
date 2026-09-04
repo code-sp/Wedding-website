@@ -27,41 +27,31 @@ export const createUser = async (req, res) => {
     const name = cleanName(req.body.name) || 'Invited Guest';
     if (!clientId) return res.status(400).json({ error: 'clientId required' });
 
-    let clientAccessCode;
-    if (role === 'client') {
-      do {
-        clientAccessCode = generateClientAccessCode();
-      } while (await User.exists({ access_code: clientAccessCode }));
-    }
-
     const newUser = await User.create({
       _id: `user_${crypto.randomUUID()}`,
       role,
       clientId,
       name,
-      ...(clientAccessCode ? { access_code: clientAccessCode } : {}),
       is_registered: false,
       profile_complete: false
     });
 
     let invitation = null;
-    if (role === 'user') {
-      try {
-        const { rawToken, record } = await issueInvitationToken({
-          user: newUser,
-          createdBy: req.auth.userId,
-          purpose: 'invite',
-          expiresInHours: req.body.expiresInHours
-        });
-        invitation = {
-          token: rawToken,
-          expiresAt: record.expiresAt,
-          loginFragment: `/login#invite=${encodeURIComponent(rawToken)}`
-        };
-      } catch (error) {
-        await User.deleteOne({ _id: newUser._id });
-        throw error;
-      }
+    try {
+      const { rawToken, record } = await issueInvitationToken({
+        user: newUser,
+        createdBy: req.auth.userId,
+        purpose: role === 'client' ? 'portal-invite' : 'invite',
+        expiresInHours: req.body.expiresInHours
+      });
+      invitation = {
+        token: rawToken,
+        expiresAt: record.expiresAt,
+        loginFragment: `/login#invite=${encodeURIComponent(rawToken)}`
+      };
+    } catch (error) {
+      await User.deleteOne({ _id: newUser._id });
+      throw error;
     }
 
     if (req.body.guestId) {
@@ -79,7 +69,6 @@ export const createUser = async (req, res) => {
         role: newUser.role,
         clientId: newUser.clientId
       },
-      ...(clientAccessCode ? { clientAccessCode } : {}),
       ...(invitation ? { invitation } : {})
     });
   } catch (error) {
