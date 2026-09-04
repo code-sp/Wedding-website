@@ -50,6 +50,7 @@ const StandardButton = ({
             type={type}
             disabled={disabled || loading}
             title={title}
+            aria-label={title || (typeof children === 'string' ? children : undefined)}
             className={`
                 relative inline-flex items-center justify-center overflow-hidden
                 font-bold uppercase tracking-[0.25em] select-none
