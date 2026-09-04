@@ -7,7 +7,9 @@ import {
   RSVP,
   Session,
   InvitationToken,
-  Asset
+  Asset,
+  SeatReservation,
+  RoomReservation
 } from '../models.js';
 import * as defaults from '../defaults.js';
 import { issueInvitationToken } from '../security/invitation.js';
@@ -175,6 +177,8 @@ export const createClient = async (req, res) => {
         Session.deleteMany({ userId: { $in: rollbackUserIds } }),
         InvitationToken.deleteMany({ clientId }),
         Asset.deleteMany({ clientId }),
+        SeatReservation.deleteMany({ clientId }),
+        RoomReservation.deleteMany({ clientId }),
         User.deleteMany({ clientId })
       ]);
     }
@@ -203,6 +207,8 @@ export const deleteClient = async (req, res) => {
       AllowedGuest.deleteMany({ clientId }),
       InvitationToken.deleteMany({ clientId }),
       Asset.deleteMany({ clientId }),
+      SeatReservation.deleteMany({ clientId }),
+      RoomReservation.deleteMany({ clientId }),
       Session.deleteMany({ userId: { $in: userIds } }),
       User.deleteMany({ clientId })
     ]);
