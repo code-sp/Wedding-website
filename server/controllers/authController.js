@@ -8,9 +8,6 @@ const cleanName = (value) => String(value ?? '')
   .trim()
   .slice(0, 100);
 
-const generateClientAccessCode = () =>
-  `CL_${crypto.randomBytes(12).toString('base64url').toUpperCase()}`;
-
 const resolveTenant = (req) => {
   if (req.auth.role === 'admin') return String(req.body.clientId || req.query.clientId || '').trim();
   return req.auth.clientId;
