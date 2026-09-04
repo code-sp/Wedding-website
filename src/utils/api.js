@@ -76,24 +76,24 @@ const request = async (path, init = {}, allowRefresh = true) => {
     return payload;
 };
 
-const uploadImageDataUrl = async (dataUrl) => {
+const uploadImageDataUrl = async (dataUrl, clientId = 'default_client') => {
     const result = await request('/assets', {
         method: 'POST',
-        body: JSON.stringify({ dataUrl })
+        body: JSON.stringify({ dataUrl, clientId })
     });
     return result.url;
 };
 
-const materializeImageAssets = async (value) => {
+const materializeImageAssets = async (value, clientId) => {
     if (typeof value === 'string') {
-        return value.startsWith('data:image/') ? uploadImageDataUrl(value) : value;
+        return value.startsWith('data:image/') ? uploadImageDataUrl(value, clientId) : value;
     }
     if (Array.isArray(value)) {
-        return Promise.all(value.map(materializeImageAssets));
+        return Promise.all(value.map((child) => materializeImageAssets(child, clientId)));
     }
     if (value && typeof value === 'object') {
         const entries = await Promise.all(
-            Object.entries(value).map(async ([key, child]) => [key, await materializeImageAssets(child)])
+            Object.entries(value).map(async ([key, child]) => [key, await materializeImageAssets(child, clientId)])
         );
         return Object.fromEntries(entries);
     }
@@ -169,7 +169,7 @@ export const api = {
     },
 
     updateContent: async (key, data, clientId = 'default_client') => {
-        const normalized = await materializeImageAssets(data);
+        const normalized = await materializeImageAssets(data, clientId);
         const result = await request(`/content/${encodeURIComponent(key)}?clientId=${encodeURIComponent(clientId)}`, {
             method: 'POST',
             body: JSON.stringify(normalized)
@@ -177,8 +177,8 @@ export const api = {
         return { ...result, value: normalized };
     },
 
-    uploadImage: async (dataUrl) => ({
-        url: await uploadImageDataUrl(dataUrl)
+    uploadImage: async (dataUrl, clientId = 'default_client') => ({
+        url: await uploadImageDataUrl(dataUrl, clientId)
     }),
 
     submitRSVP: async (userId, data, clientId) => {
