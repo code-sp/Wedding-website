@@ -47,9 +47,8 @@ test('Guest Directory add, invite, rename and remove work securely', async ({ pa
       response.request().method() === 'DELETE' && response.ok()
   );
 
-  const removeGuest = page.getByTitle('Remove Guest');
-  await removeGuest.click({ force: true });
-  await removeGuest.click({ force: true });
+  await page.getByTitle('Remove Guest').click({ force: true });
+  await page.getByTitle('Click again to confirm').click({ force: true });
   await Promise.all([deleteUser, deleteGuest]);
 
   await page.getByTitle('Refresh').click();
