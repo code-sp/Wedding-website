@@ -8,7 +8,9 @@ const toSessionUser = (user) => ({
   name: user.name,
   role: user.role,
   clientId: user.clientId || 'default_client',
-  isProfileComplete: Boolean(user.profile_complete ?? user.is_registered)
+  isProfileComplete: Boolean(user.profile_complete ?? user.is_registered),
+  isRegistered: Boolean(user.is_registered),
+  rsvpData: user.rsvp_data || null
 });
 
 export const createInvitation = async (req, res) => {
