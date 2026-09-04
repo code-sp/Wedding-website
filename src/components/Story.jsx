@@ -361,7 +361,7 @@ const Story = () => {
     return (
         <PageLayout backgroundText="" className="!p-0">
             <div className="absolute inset-0 flex flex-col overflow-hidden">
-                {canEdit && <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />}
+                {canEdit && <input type="file" ref={fileInputRef} className="hidden" accept="image/jpeg,image/png,image/webp" onChange={handleImageUpload} />}
 
                 {/* Header Section */}
                 <div className="w-full pt-8 md:pt-10 pb-2 flex flex-col items-center text-center relative z-30 shrink-0 pointer-events-none">
