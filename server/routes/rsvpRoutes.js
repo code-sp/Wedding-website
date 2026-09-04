@@ -4,8 +4,8 @@ import { authenticate, authorize, requireProfileComplete } from '../middleware/a
 
 const router = express.Router();
 
-router.get('/rsvp', authenticate, getMyRSVP);
-router.post('/rsvp', authenticate, submitRSVP);
+router.get('/rsvp', authenticate, requireProfileComplete, getMyRSVP);
+router.post('/rsvp', authenticate, requireProfileComplete, submitRSVP);
 router.get('/rsvps', authenticate, requireProfileComplete, authorize('admin', 'client'), getAllRSVPs);
 router.delete('/rsvp/:id', authenticate, requireProfileComplete, authorize('admin', 'client'), deleteRSVP);
 
