@@ -1,5 +1,6 @@
 import crypto from 'crypto';
-import { User, RSVP, AllowedGuest } from '../models.js';
+import { User, RSVP, AllowedGuest, SeatReservation, RoomReservation } from '../models.js';
+import { stageSeatReservations, stageRoomReservation } from '../services/reservationService.js';
 
 const makeId = (prefix) => `${prefix}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
 const cleanText = (value, max = 200) => String(value ?? '')
@@ -136,12 +137,31 @@ export const getMyRSVP = async (req, res) => {
 };
 
 export const submitRSVP = async (req, res) => {
+  let seatStage = null;
+  let roomStage = null;
+  let persisted = false;
+
   try {
     const user = await resolveTargetUser(req, req.body?.data);
     if (!user) return res.status(403).json({ error: 'RSVP identity could not be verified' });
 
     const data = normalizeRSVP(req.body.data, user.name, req.auth.role === 'user');
     const clientId = user.clientId || req.auth.clientId || 'default_client';
+
+    seatStage = await stageSeatReservations({
+      clientId,
+      userId: user._id,
+      seatNumbers: data.seatNumbers
+    });
+    roomStage = await stageRoomReservation({
+      clientId,
+      userId: user._id,
+      requestedRoomId: data.accommodation
+    });
+
+    if (roomStage.assignmentLabel) data.roomNumber = roomStage.assignmentLabel;
+    else if (!data.accommodation || ['required', 'confirmed-elsewhere'].includes(String(data.accommodation))) data.roomNumber = '';
+
     const existing = await RSVP.findOne({ userId: user._id, clientId });
 
     if (existing) {
@@ -149,6 +169,8 @@ export const submitRSVP = async (req, res) => {
       existing.timestamp = new Date();
       await existing.save();
       await User.updateOne({ _id: user._id }, { is_registered: true, rsvp_data: existing.data });
+      persisted = true;
+      await Promise.all([seatStage.finalize(), roomStage.finalize()]);
       return res.json({ success: true, id: existing._id, rsvp: existing.data });
     }
 
@@ -167,9 +189,17 @@ export const submitRSVP = async (req, res) => {
       { is_registered: true, rsvp_data: cleanData }
     );
 
+    persisted = true;
+    await Promise.all([seatStage.finalize(), roomStage.finalize()]);
     return res.status(201).json({ success: true, id: newId, rsvp: cleanData });
   } catch (error) {
-    if (error?.status) return res.status(error.status).json({ error: error.message });
+    if (!persisted) {
+      await Promise.allSettled([
+        seatStage?.rollback?.(),
+        roomStage?.rollback?.()
+      ]);
+    }
+    if (error?.status) return res.status(error.status).json({ error: error.message, code: error.code });
     console.error('RSVP submission failed', error);
     return res.status(500).json({ error: 'Unable to save RSVP' });
   }
@@ -188,6 +218,10 @@ export const deleteRSVP = async (req, res) => {
     await RSVP.findByIdAndDelete(id);
 
     if (rsvp.userId) {
+      await Promise.all([
+        SeatReservation.deleteMany({ clientId: rsvp.clientId, userId: rsvp.userId }),
+        RoomReservation.deleteMany({ clientId: rsvp.clientId, userId: rsvp.userId })
+      ]);
       await User.updateOne(
         { _id: rsvp.userId },
         { is_registered: false, rsvp_data: null }
