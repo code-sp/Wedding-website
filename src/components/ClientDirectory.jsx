@@ -79,6 +79,7 @@ const ClientDirectory = () => {
                     type: 'success',
                     message: 'Portal created successfully!',
                     token: res.ownerToken,
+                    loginFragment: res.ownerLoginFragment,
                     clientId: res.client?._id || res.client?.id || id
                 });
                 setNewClient({ id: '', name: '' });
@@ -232,7 +233,7 @@ const ClientDirectory = () => {
                                                 <div className="space-y-3 pt-3 border-t border-emerald-500/20">
                                                     {/* Token */}
                                                     <div>
-                                                        <p className="text-[9px] uppercase tracking-widest text-emerald-400/60 font-bold mb-1.5">Client Login Token</p>
+                                                        <p className="text-[9px] uppercase tracking-widest text-emerald-400/60 font-bold mb-1.5">Single-use Organiser Invitation</p>
                                                         <div className="flex items-center gap-2 bg-black/20 rounded-lg px-3 py-2">
                                                             <Key size={11} className="text-emerald-400/50 shrink-0" />
                                                             <code className="flex-1 font-mono text-xs font-bold tracking-wider text-emerald-200 truncate">{status.token}</code>
@@ -267,7 +268,7 @@ const ClientDirectory = () => {
                                                         </div>
                                                     </div>
                                                     <p className="text-[9px] text-emerald-400/50 leading-relaxed">
-                                                        Share the token with your client so they can login. Keep it confidential.
+                                                        Share this invitation once. It expires and cannot be reused after successful sign-in.
                                                     </p>
                                                 </div>
                                             )}
