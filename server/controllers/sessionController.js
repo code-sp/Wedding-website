@@ -14,7 +14,9 @@ const toSessionUser = (user) => ({
   name: user.name,
   role: user.role,
   clientId: user.clientId || 'default_client',
-  isProfileComplete: Boolean(user.profile_complete ?? user.is_registered)
+  isProfileComplete: Boolean(user.profile_complete ?? user.is_registered),
+  isRegistered: Boolean(user.is_registered),
+  rsvpData: user.rsvp_data || null
 });
 
 export const sessionLogin = async (req, res) => {
@@ -95,7 +97,7 @@ export const refreshSession = async (req, res) => {
 
 export const getSession = async (req, res) => {
   const user = await User.findById(req.auth.userId)
-    .select('_id name role clientId is_registered profile_complete');
+    .select('_id name role clientId is_registered profile_complete rsvp_data');
   if (!user) return res.status(401).json({ error: 'Session user no longer exists' });
 
   if (!req.cookies?.csrf_token) issueCsrfToken(res);
