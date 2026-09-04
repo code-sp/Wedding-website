@@ -10,6 +10,7 @@ import { csrfProtection } from './middleware/csrf.js';
 
 import sessionRoutes from './routes/sessionRoutes.js';
 import invitationRoutes from './routes/invitationRoutes.js';
+import assetRoutes from './routes/assetRoutes.js';
 import profileRoutes from './routes/profileRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import contentRoutes from './routes/contentRoutes.js';
@@ -48,6 +49,7 @@ await connectDB();
 
 app.use('/api', sessionRoutes);
 app.use('/api', invitationRoutes);
+app.use('/api', assetRoutes);
 app.use('/api', profileRoutes);
 app.use('/api', authRoutes);
 app.use('/api/content', contentRoutes);
