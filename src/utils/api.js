@@ -322,10 +322,17 @@ export const api = {
 
     getGlobalStats: () => request('/clients/stats'),
 
-    createClient: (id, name, details = {}) => request('/clients', {
-        method: 'POST',
-        body: JSON.stringify({ id, name, ...details })
-    }),
+    createClient: async (id, name, details = {}) => {
+        const result = await request('/clients', {
+            method: 'POST',
+            body: JSON.stringify({ id, name, ...details })
+        });
+        return {
+            ...result,
+            ownerToken: result?.ownerInvitation?.token || null,
+            ownerLoginFragment: result?.ownerInvitation?.loginFragment || null
+        };
+    },
 
     deleteClient: (id) => request(`/clients/${encodeURIComponent(id)}`, { method: 'DELETE' })
 };
