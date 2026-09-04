@@ -60,7 +60,7 @@ export const ImageProvider = ({ children }) => {
 
     // RSVP
     const [rsvpSubmissions, setRsvpSubmissions] = useState([]);
-    const { clientId } = useAuth();
+    const { clientId, user, isAdmin, isClient } = useAuth();
 
     // Initial Fetch
     useEffect(() => {
@@ -102,7 +102,7 @@ export const ImageProvider = ({ children }) => {
                     api.getContent('groom_family_people', clientId),
                     api.getContent('groom_family_families', clientId),
                     api.getContent('groom_family_links', clientId),
-                    api.getAllRSVPs(clientId),
+                    (isAdmin || isClient) ? api.getAllRSVPs(clientId) : api.getSeatOccupancy(),
                     api.getContent('client_settings', clientId)
                 ]);
 
@@ -125,7 +125,19 @@ export const ImageProvider = ({ children }) => {
                 setGroomFamilies(gf || []);
                 setGroomLinks(gl || []);
 
-                setRsvpSubmissions(rsvps || []);
+                if (isAdmin || isClient) {
+                    setRsvpSubmissions(Array.isArray(rsvps) ? rsvps : []);
+                } else {
+                    const occupancy = Array.isArray(rsvps) ? rsvps : [];
+                    const ownRsvp = user?.rsvpData || null;
+                    const synthetic = occupancy.map((seat, index) => ({
+                        id: seat.mine && ownRsvp?.id ? ownRsvp.id : `occupied-seat-${index}`,
+                        userId: seat.mine ? user?.id : undefined,
+                        seatNumbers: [seat.seatNumber]
+                    }));
+                    if (ownRsvp) synthetic.push({ ...ownRsvp, userId: user?.id });
+                    setRsvpSubmissions(synthetic);
+                }
 
                 console.log('[IMAGE_CONTEXT] State hydration finished successfully.');
 
@@ -136,7 +148,7 @@ export const ImageProvider = ({ children }) => {
             }
         };
         loadAll();
-    }, [clientId]);
+    }, [clientId, user?.id, user?.rsvpData, isAdmin, isClient]);
 
     // --- Actions ---
 
