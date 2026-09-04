@@ -2,35 +2,145 @@ import crypto from 'crypto';
 import { User, RSVP, AllowedGuest } from '../models.js';
 
 const makeId = (prefix) => `${prefix}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+const cleanText = (value, max = 200) => String(value ?? '')
+  .replace(/[<>]/g, '')
+  .replace(/\s+/g, ' ')
+  .trim()
+  .slice(0, max);
 
-const resolveTargetUser = async (req) => {
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_PATTERN = /^\+?[0-9][0-9 -]{7,18}$/;
+const MEALS = new Set(['', 'vegetarian', 'vegan', 'jain', 'non-vegetarian', 'other']);
+
+const normalizeRSVP = (data, fallbackName, requireContact) => {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    const error = new Error('RSVP data required');
+    error.status = 400;
+    throw error;
+  }
+
+  const attending = data.attending === 'no' || data.attendance === 'not-attending' ? 'no' : 'yes';
+  const requestedGuests = Number.parseInt(data.guests ?? data.guestCount ?? 1, 10);
+  const guests = attending === 'yes'
+    ? Math.min(10, Math.max(1, Number.isFinite(requestedGuests) ? requestedGuests : 1))
+    : 0;
+
+  const name = cleanText(data.name || fallbackName, 100);
+  const email = cleanText(data.email, 160).toLowerCase();
+  const mobile = cleanText(data.mobile || data.phone, 20).replace(/[^+\d -]/g, '');
+  const mealPreference = cleanText(data.mealPreference || data.dietaryPreference, 30).toLowerCase();
+
+  if (!name) {
+    const error = new Error('Guest name is required');
+    error.status = 400;
+    throw error;
+  }
+  if (email && !EMAIL_PATTERN.test(email)) {
+    const error = new Error('Invalid email address');
+    error.status = 400;
+    throw error;
+  }
+  if (mobile && !PHONE_PATTERN.test(mobile)) {
+    const error = new Error('Invalid mobile number');
+    error.status = 400;
+    throw error;
+  }
+  if (requireContact && attending === 'yes' && (!email || !mobile)) {
+    const error = new Error('Email and mobile are required when attending');
+    error.status = 400;
+    throw error;
+  }
+  if (!MEALS.has(mealPreference)) {
+    const error = new Error('Invalid meal preference');
+    error.status = 400;
+    throw error;
+  }
+
+  const guestDetails = attending === 'yes'
+    ? (Array.isArray(data.guestDetails) ? data.guestDetails : [])
+        .slice(0, guests)
+        .map((guest) => ({
+          name: cleanText(guest?.name, 100),
+          age: cleanText(guest?.age, 3).replace(/[^0-9]/g, ''),
+          gender: cleanText(guest?.gender, 20)
+        }))
+    : [];
+
+  const seatNumbers = attending === 'yes'
+    ? [...new Set((Array.isArray(data.seatNumbers) ? data.seatNumbers : [])
+        .map((seat) => cleanText(seat, 40))
+        .filter(Boolean))]
+        .slice(0, guests)
+    : [];
+
+  return {
+    name,
+    email,
+    mobile,
+    attending,
+    guests,
+    guestDetails,
+    seatNumbers,
+    accommodation: cleanText(data.accommodation, 80),
+    roomNumber: cleanText(data.roomNumber, 80),
+    mealPreference,
+    message: cleanText(data.message, 500)
+  };
+};
+
+const resolveTargetUser = async (req, data) => {
   if (req.auth.role === 'user') {
     return User.findById(req.auth.userId);
   }
 
   const requestedUserId = req.body.userId;
-  if (!requestedUserId) return null;
-
-  const user = await User.findById(requestedUserId);
-  if (!user) return null;
-
-  if (req.auth.role === 'client' && user.clientId !== req.auth.clientId) {
-    return null;
+  if (requestedUserId) {
+    const user = await User.findById(requestedUserId);
+    if (!user) return null;
+    if (req.auth.role === 'client' && user.clientId !== req.auth.clientId) return null;
+    return user;
   }
 
-  return user;
+  const clientId = req.auth.role === 'admin'
+    ? cleanText(req.body.clientId || req.auth.clientId || 'default_client', 120)
+    : req.auth.clientId;
+
+  if (!clientId) return null;
+
+  return User.create({
+    _id: `user_manual_${crypto.randomUUID()}`,
+    role: 'user',
+    clientId,
+    name: cleanText(data?.name, 100) || 'Manual Guest',
+    profile_complete: true,
+    is_registered: false
+  });
+};
+
+export const getMyRSVP = async (req, res) => {
+  try {
+    if (req.auth.role !== 'user') {
+      return res.json({ rsvp: null, organizer: true });
+    }
+
+    const rsvp = await RSVP.findOne({
+      userId: req.auth.userId,
+      clientId: req.auth.clientId || 'default_client'
+    });
+
+    return res.json({ rsvp: rsvp ? { ...rsvp.data, id: rsvp._id } : null });
+  } catch (error) {
+    console.error('RSVP read failed', error);
+    return res.status(500).json({ error: 'Unable to load RSVP' });
+  }
 };
 
 export const submitRSVP = async (req, res) => {
   try {
-    const { data } = req.body;
-    if (!data || typeof data !== 'object') {
-      return res.status(400).json({ error: 'RSVP data required' });
-    }
-
-    const user = await resolveTargetUser(req);
+    const user = await resolveTargetUser(req, req.body?.data);
     if (!user) return res.status(403).json({ error: 'RSVP identity could not be verified' });
 
+    const data = normalizeRSVP(req.body.data, user.name, req.auth.role === 'user');
     const clientId = user.clientId || req.auth.clientId || 'default_client';
     const existing = await RSVP.findOne({ userId: user._id, clientId });
 
@@ -39,7 +149,7 @@ export const submitRSVP = async (req, res) => {
       existing.timestamp = new Date();
       await existing.save();
       await User.updateOne({ _id: user._id }, { is_registered: true, rsvp_data: existing.data });
-      return res.json({ success: true, id: existing._id });
+      return res.json({ success: true, id: existing._id, rsvp: existing.data });
     }
 
     const newId = makeId('rsvp');
@@ -57,8 +167,9 @@ export const submitRSVP = async (req, res) => {
       { is_registered: true, rsvp_data: cleanData }
     );
 
-    return res.status(201).json({ success: true, id: newId });
+    return res.status(201).json({ success: true, id: newId, rsvp: cleanData });
   } catch (error) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
     console.error('RSVP submission failed', error);
     return res.status(500).json({ error: 'Unable to save RSVP' });
   }
