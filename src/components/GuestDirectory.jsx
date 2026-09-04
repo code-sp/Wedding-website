@@ -3,7 +3,7 @@ import { useState } from 'react';
 import PageLayout from './PageLayout';
 import EditRSVPModal from './EditRSVPModal';
 import { api } from '../utils/api';
-import { Plus, Users, RefreshCw, Copy, Edit, X, Key, Share2 } from 'lucide-react';
+import { Plus, Users, RefreshCw, Edit, X, Key } from 'lucide-react';
 import DeleteButton from './DeleteButton';
 import { useAuth } from '../context/AuthContext';
 import { useGuestList } from '../hooks/useGuestList';
