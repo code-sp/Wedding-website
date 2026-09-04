@@ -80,6 +80,21 @@ async function request<T>(path: string, init: RequestInit = {}, allowRefresh = t
   return payload as T;
 }
 
+export type RSVPData = {
+  id?: string;
+  name: string;
+  email: string;
+  mobile: string;
+  attending: 'yes' | 'no';
+  guests: number;
+  guestDetails?: Array<{ name?: string; age?: string; gender?: string }>;
+  seatNumbers?: string[];
+  accommodation?: string;
+  roomNumber?: string;
+  mealPreference?: '' | 'vegetarian' | 'vegan' | 'jain' | 'non-vegetarian' | 'other';
+  message?: string;
+};
+
 export const api = {
   login: (code: string, clientId = 'default_client') =>
     request<{ user: SessionUser }>('/session/login', {
@@ -100,6 +115,16 @@ export const api = {
   logout: () => request<void>('/session/logout', { method: 'POST' }, false),
 
   profile: () => request<{ profile: Record<string, string>; isProfileComplete: boolean }>('/profile'),
+
+  myRsvp: () => request<{ rsvp: RSVPData | null; organizer?: boolean }>('/rsvp'),
+
+  saveRsvp: (data: RSVPData) => request<{ success: true; id: string; rsvp: RSVPData }>('/rsvp', {
+    method: 'POST',
+    body: JSON.stringify({ data })
+  }),
+
+  content: <T>(key: string, clientId = 'default_client') =>
+    request<T | null>(`/content/${encodeURIComponent(key)}?clientId=${encodeURIComponent(clientId)}`),
 
   completeProfile: (profile: {
     fullName: string;
