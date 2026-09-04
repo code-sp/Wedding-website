@@ -18,10 +18,15 @@ export const uploadAsset = async (req, res) => {
       return res.status(413).json({ error: 'Image must be smaller than 1.8 MB after compression' });
     }
 
+    const requestedClientId = String(req.body?.clientId || '').trim();
+    const clientId = req.auth.role === 'admin'
+      ? (requestedClientId || req.auth.clientId || 'default_client')
+      : (req.auth.clientId || 'default_client');
+
     const id = `asset_${crypto.randomUUID()}`;
     const asset = await Asset.create({
       _id: id,
-      clientId: req.auth.clientId || 'default_client',
+      clientId,
       uploadedBy: req.auth.userId,
       mimeType,
       data,
