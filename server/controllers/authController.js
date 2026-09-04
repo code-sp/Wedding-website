@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { User, RSVP, AllowedGuest, Session, InvitationToken } from '../models.js';
+import { User, RSVP, AllowedGuest, Session, InvitationToken, SeatReservation, RoomReservation } from '../models.js';
 import { issueInvitationToken } from '../security/invitation.js';
 
 const cleanName = (value) => String(value ?? '')
@@ -116,6 +116,8 @@ export const deleteUser = async (req, res) => {
       RSVP.deleteMany({ userId: target._id }),
       Session.deleteMany({ userId: target._id }),
       InvitationToken.deleteMany({ userId: target._id }),
+      SeatReservation.deleteMany({ userId: target._id }),
+      RoomReservation.deleteMany({ userId: target._id }),
       AllowedGuest.updateMany(
         { claimedBy: target._id },
         { $set: { isClaimed: false, claimedBy: null } }
