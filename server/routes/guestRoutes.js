@@ -4,11 +4,11 @@ import { authenticate, authorize, requireProfileComplete } from '../middleware/a
 import { scopeTenant, requireTargetGuestInTenant } from '../middleware/tenant.js';
 
 const router = express.Router();
+const protectedGuestRoute = [authenticate, requireProfileComplete, authorize('admin', 'client')];
 
-router.use(authenticate, requireProfileComplete, authorize('admin', 'client'));
-router.get('/guests', scopeTenant, getGuests);
-router.post('/guests', scopeTenant, addGuest);
-router.put('/guests/:id', requireTargetGuestInTenant, scopeTenant, updateGuest);
-router.delete('/guests/:id', requireTargetGuestInTenant, deleteGuest);
+router.get('/guests', ...protectedGuestRoute, scopeTenant, getGuests);
+router.post('/guests', ...protectedGuestRoute, scopeTenant, addGuest);
+router.put('/guests/:id', ...protectedGuestRoute, requireTargetGuestInTenant, scopeTenant, updateGuest);
+router.delete('/guests/:id', ...protectedGuestRoute, requireTargetGuestInTenant, deleteGuest);
 
 export default router;
