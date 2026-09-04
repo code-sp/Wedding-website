@@ -38,6 +38,7 @@ export const getClients = async (_req, res) => {
       const owner = ownerByClient.get(client._id);
       return {
         ...client.toObject(),
+        ownerId: owner?._id || null,
         ownerName: owner?.name || null,
         isRegistered: Boolean(owner?.is_registered),
         profileComplete: Boolean(owner?.profile_complete),
