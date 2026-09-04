@@ -1,170 +1,145 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { api } from '../utils/api';
-// We still use SecureStorage to persist the "User ID/Token" locally so refresh works, or we can just use localStorage directly.
-// But technically we should persist the *result* of login.
-import SecureStorage from '../utils/secureStorage';
 
 const AuthContext = createContext();
 
 export const useAuth = () => useContext(AuthContext);
 
+const getInitialClientId = () => {
+    if (typeof window === 'undefined') return 'default_client';
+    const params = new URLSearchParams(window.location.search);
+    return params.get('c') || params.get('clientId') || localStorage.getItem('activeClientId') || 'default_client';
+};
+
 export const AuthProvider = ({ children }) => {
-    // Note: We removed the dependency on useImageContext!
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [isRegistered, setIsRegistered] = useState(false);
-    const getInitialClientId = () => {
-        const params = new URLSearchParams(window.location.search);
-        const urlId = params.get('c') || params.get('clientId');
-        const finalId = urlId || SecureStorage.getItem('activeClientId') || 'default_client';
-        if (urlId && urlId !== SecureStorage.getItem('activeClientId')) {
-            SecureStorage.setItem('activeClientId', urlId);
-        }
-        return finalId;
-    };
-
-    const [activeClientId, setActiveClientId] = useState(getInitialClientId());
-
-    // For Invite Links (admin only)
-    const [generatedTokens, setGeneratedTokens] = useState({});
+    const [activeClientId, setActiveClientId] = useState(getInitialClientId);
     const [clients, setClients] = useState([]);
 
     useEffect(() => {
-        // Hydrate session on load
-        console.log('[AUTH_CONTEXT] Initializing session hydration...');
-        const storedUser = SecureStorage.getItem('currentUser');
-        if (storedUser) {
-            console.log('[AUTH_CONTEXT] Found stored session for:', storedUser.name, 'Role:', storedUser.role);
-            setUser(storedUser);
-            setIsRegistered(storedUser.isRegistered);
-        } else {
-            console.log('[AUTH_CONTEXT] No active session found.');
-        }
-        setLoading(false);
+        let cancelled = false;
+
+        const hydrate = async () => {
+            try {
+                const result = await api.session();
+                if (cancelled) return;
+                setUser(result.user);
+                setIsRegistered(Boolean(result.user?.isRegistered));
+            } catch {
+                if (!cancelled) {
+                    setUser(null);
+                    setIsRegistered(false);
+                }
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        };
+
+        hydrate();
+        return () => { cancelled = true; };
     }, []);
 
-    useEffect(() => {
-        if (user?.role === 'admin') {
-            console.log('[AUTH_CONTEXT] Admin detected, fetching global client list...');
-            fetchClients();
-        }
-    }, [user]);
-
     const fetchClients = async () => {
-        try {
-            const data = await api.getClients();
-            console.log('[AUTH_CONTEXT] Successfully fetched', data.length, 'clients.');
-            setClients(data);
-        } catch (e) {
-            console.error('[AUTH_CONTEXT] ERROR: Failed to fetch clients', e);
+        if (!user || user.role !== 'admin') {
+            setClients([]);
+            return [];
         }
+        const data = await api.getClients();
+        setClients(Array.isArray(data) ? data : []);
+        return data;
     };
 
-    const loginWithCode = async (code, clientId) => {
-        console.log('[AUTH_CONTEXT] Attempting login with code for clientId:', clientId);
-        try {
-            const res = await api.login(code, clientId);
-            if (res.success) {
-                console.log('[AUTH_CONTEXT] Login successful. Role:', res.user?.role);
-                // If special global code, it might require name registration
-                if (res.requireName) {
-                    console.log('[AUTH_CONTEXT] Login requires name registration.');
-                    return { success: true, requireName: true };
-                }
-
-                const userData = res.user;
-
-                // Restrict unregistered clients from accessing the main site
-                if (userData.role === 'client' && !userData.isRegistered && userData.access_code?.startsWith('REQ')) {
-                    console.log('[AUTH_CONTEXT] Client registration pending.');
-                    return { success: true, requireClientRegistration: true, user: userData };
-                }
-
-                setUser(userData);
-                setIsRegistered(userData.isRegistered);
-                SecureStorage.setItem('currentUser', userData);
-                
-                return { success: true, role: userData.role };
-            } else {
-                console.warn('[AUTH_CONTEXT] Login failed:', res.error);
-                return { success: false, error: res.error || 'Invalid code' };
-            }
-        } catch (e) {
-            console.error('[AUTH_CONTEXT] CRITICAL ERROR: Network/Server failure during login', e);
-            return { success: false, error: 'Network error' };
+    useEffect(() => {
+        if (user?.role === 'admin' && user?.profileComplete) {
+            fetchClients();
+        } else {
+            setClients([]);
         }
+    }, [user?.role, user?.profileComplete]);
+
+    const loginWithCode = async (code, clientId = activeClientId) => {
+        const result = await api.login(code, clientId);
+        if (!result.success) return result;
+
+        const userData = result.user;
+        setUser(userData);
+        setIsRegistered(Boolean(userData?.isRegistered));
+
+        if (userData?.clientId && userData.role !== 'admin') {
+            setActiveClientId(userData.clientId);
+        }
+
+        return {
+            success: true,
+            role: userData?.role,
+            user: userData,
+            requireClientRegistration: Boolean(
+                (userData?.role === 'client' || userData?.role === 'admin') &&
+                !userData?.profileComplete
+            )
+        };
     };
 
-    const registerAndLogin = async (name, globalCode, clientId) => {
-        console.log('[AUTH_CONTEXT] Registering guest:', name, 'under clientId:', clientId);
-        try {
-            const res = await api.registerGuest(name, globalCode, clientId);
-            if (res.success) {
-                console.log('[AUTH_CONTEXT] Guest registration successful.');
-                const userData = res.user;
-                setUser(userData);
-                setIsRegistered(false);
-                SecureStorage.setItem('currentUser', userData);
-                return { success: true, role: userData.role };
-            }
-            console.warn('[AUTH_CONTEXT] Registration failed:', res.error);
-            return { success: false, error: res.error };
-        } catch (e) {
-            console.error('[AUTH_CONTEXT] ERROR during guest registration', e);
-            return { success: false, error: 'Registration failed' };
-        }
+    const registerAndLogin = async (_name, invitationToken, clientId = activeClientId) => {
+        const result = await api.login(invitationToken, clientId);
+        if (!result.success) return result;
+        setUser(result.user);
+        setIsRegistered(Boolean(result.user?.isRegistered));
+        return { success: true, role: result.user?.role, user: result.user };
     };
 
-    const logout = () => {
-        console.log('[AUTH_CONTEXT] Logging out user:', user?.name);
+    const logout = async () => {
+        try {
+            await api.logout();
+        } catch {
+            // Clear local UI state even if the server session is already gone.
+        }
         setUser(null);
         setIsRegistered(false);
         setClients([]);
         setActiveClientId('default_client');
-        SecureStorage.removeItem('currentUser');
-        SecureStorage.removeItem('activeClientId');
+        localStorage.removeItem('activeClientId');
     };
 
     const switchClient = (newId) => {
-        if (user?.role === 'admin') {
-            console.log('[AUTH_CONTEXT] Admin switching active client context to:', newId);
-            setActiveClientId(newId);
-            SecureStorage.setItem('activeClientId', newId);
-        }
+        if (user?.role !== 'admin' || !newId) return;
+        setActiveClientId(newId);
+        localStorage.setItem('activeClientId', newId);
     };
 
-    // Generate Token (Async now)
     const generateToken = async (role = 'user') => {
-        const res = await api.createUser({ role, name: 'Invited Guest' });
-        if (res.success) {
-            return res.user.access_code;
+        const result = await api.createUser({
+            role,
+            name: role === 'client' ? 'Wedding Organiser' : 'Invited Guest',
+            clientId: activeClientId
+        });
+        return result?.user?.accessCode || null;
+    };
+
+    const checkTokenStatus = async () => {
+        try {
+            const result = await api.session();
+            return { valid: true, user: result.user };
+        } catch {
+            return { valid: false };
         }
-        return null;
     };
 
-    // Check Status placeholder
-    const checkTokenStatus = () => {
-        return { valid: true }; // Backend handles this now in login
-    };
-
-    // Complete Registration (Client-side optimistic update for route guards)
     const completeRegistration = (rsvpData) => {
-        if (user) {
-            const updated = { ...user, isRegistered: true, rsvpData };
-            setUser(updated);
-            setIsRegistered(true);
-            SecureStorage.setItem('currentUser', updated);
-        }
+        setIsRegistered(true);
+        setUser(current => current ? { ...current, isRegistered: true, rsvpData } : current);
     };
 
-    const value = {
+    const value = useMemo(() => ({
         user,
         loading,
         isRegistered,
         loginWithCode,
         registerAndLogin,
         logout,
-        isAuthenticated: !!user,
+        isAuthenticated: Boolean(user),
         isAdmin: user?.role === 'admin',
         isClient: user?.role === 'client',
         isGuest: !user || user?.role === 'user',
@@ -173,11 +148,11 @@ export const AuthProvider = ({ children }) => {
         switchClient,
         clients,
         refreshClients: fetchClients,
-        generatedTokens,
+        generatedTokens: {},
         generateToken,
         checkTokenStatus,
         completeRegistration
-    };
+    }), [user, loading, isRegistered, activeClientId, clients]);
 
     return (
         <AuthContext.Provider value={value}>
