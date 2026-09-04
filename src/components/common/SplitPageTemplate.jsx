@@ -180,9 +180,35 @@ const SplitPageTemplate = ({
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [uploaderName, setUploaderName] = useState('');
     const [selectedFile, setSelectedFile] = useState(null);
+    const [previewUrl, setPreviewUrl] = useState('');
+    const [uploadError, setUploadError] = useState('');
 
     const [isDraggingOverFile, setIsDraggingOverFile] = useState(false);
     const dragCounter = useRef(0);
+
+    useEffect(() => {
+        if (!selectedFile) {
+            setPreviewUrl('');
+            return undefined;
+        }
+        const url = URL.createObjectURL(selectedFile);
+        setPreviewUrl(url);
+        return () => URL.revokeObjectURL(url);
+    }, [selectedFile]);
+
+    useEffect(() => {
+        if (!selectedImage && !showUploadModal) return undefined;
+        const onKeyDown = (event) => {
+            if (event.key !== 'Escape') return;
+            setSelectedImage(null);
+            setShowUploadModal(false);
+            setSelectedFile(null);
+            setUploaderName('');
+            setUploadError('');
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [selectedImage, showUploadModal]);
 
     const handleDragEnterFile = (e) => {
         e.preventDefault();
@@ -199,7 +225,7 @@ const SplitPageTemplate = ({
         if (!canEdit) return;
         
         if (e.dataTransfer.types.includes('Files')) {
-            dragCounter.current -= 1;
+            dragCounter.current = Math.max(0, dragCounter.current - 1);
             if (dragCounter.current === 0) {
                 setIsDraggingOverFile(false);
             }
@@ -225,6 +251,7 @@ const SplitPageTemplate = ({
         // Do not handle file upload drops if we are reordering items internally
         if (draggedIndex !== null) return;
 
+        setUploadError('');
         const files = Array.from(e.dataTransfer.files);
         if (files.length === 0) return;
 
@@ -249,6 +276,7 @@ const SplitPageTemplate = ({
                 });
             } catch (error) {
                 console.error('[DROP_UPLOAD] Compression failed:', error);
+                setUploadError(error instanceof Error ? error.message : 'Unable to upload image');
             }
         }
         
@@ -258,6 +286,7 @@ const SplitPageTemplate = ({
     };
 
     const handleFileChange = async (e) => {
+        setUploadError('');
         const files = Array.from(e.target.files);
         if (files.length === 0) return;
 
@@ -278,7 +307,10 @@ const SplitPageTemplate = ({
                     alt: 'Uploaded Photo',
                     timestamp: new Date().toISOString()
                 });
-            } catch (error) { console.error(error); }
+            } catch (error) {
+                console.error(error);
+                setUploadError(error instanceof Error ? error.message : 'Unable to upload image');
+            }
         }
         
         if (newItems.length > 0) {
@@ -290,6 +322,8 @@ const SplitPageTemplate = ({
     const handleNamedUpload = async (e) => {
         e.preventDefault();
         try {
+            setUploadError('');
+            if (!selectedFile) throw new Error('Choose an image first');
             const compressed = await compressImage(selectedFile);
             onAdd({
                 id: Date.now(),
@@ -300,7 +334,10 @@ const SplitPageTemplate = ({
             setShowUploadModal(false);
             setUploaderName('');
             setSelectedFile(null);
-        } catch (error) { console.error(error); }
+        } catch (error) {
+            console.error(error);
+            setUploadError(error instanceof Error ? error.message : 'Unable to upload image');
+        }
     };
 
     return (
@@ -312,7 +349,7 @@ const SplitPageTemplate = ({
                 onDragLeave={canEdit ? handleDragLeaveFile : undefined}
                 onDrop={canEdit ? handleDropFile : undefined}
             >
-                <input type="file" ref={fileInputRef} className="hidden" accept="image/*" multiple={allowMultipleUploads} onChange={handleFileChange} />
+                <input type="file" ref={fileInputRef} className="hidden" accept="image/jpeg,image/png,image/webp" multiple={allowMultipleUploads} onChange={handleFileChange} />
 
                 <AnimatePresence>
                     {isDraggingOverFile && (
@@ -510,7 +547,12 @@ const SplitPageTemplate = ({
                         <motion.button 
                             whileHover={{ scale: 1.1 }}
                             whileTap={{ scale: 0.9 }}
-                            className="absolute top-10 right-10 text-white/40 hover:text-white transition-all p-4 bg-white/5 rounded-full backdrop-blur-md border border-white/10"
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                setSelectedImage(null);
+                            }}
+                            aria-label="Close photo preview"
+                            className="absolute top-6 right-6 md:top-10 md:right-10 text-white/40 hover:text-white transition-all p-3 md:p-4 bg-white/5 rounded-full backdrop-blur-md border border-white/10"
                         >
                             <X size={32} />
                         </motion.button>
@@ -521,6 +563,7 @@ const SplitPageTemplate = ({
                             exit={{ scale: 0.8, opacity: 0, y: 20 }}
                             transition={{ type: "spring", damping: 25, stiffness: 200 }}
                             src={selectedImage.src || selectedImage.url}
+                            alt={selectedImage.alt || 'Gallery photo preview'}
                             className="max-w-[92vw] max-h-[85vh] object-contain rounded-2xl shadow-[0_40px_100px_rgba(0,0,0,0.8)] border border-white/5"
                             onClick={(e) => e.stopPropagation()}
                         />
@@ -534,15 +577,16 @@ const SplitPageTemplate = ({
                     <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="bg-white/95 backdrop-blur-2xl rounded-[3rem] w-full max-w-md overflow-hidden shadow-2xl border border-white">
                         <div className="p-8 border-b border-brand-black/5 flex justify-between items-center">
                             <h3 className="font-display font-bold text-2xl text-brand-black">Share Your Moment</h3>
-                            <button onClick={() => setShowUploadModal(false)} className="text-brand-black/40 hover:text-brand-black transition-colors p-2 bg-brand-black/5 rounded-full">
+                            <button onClick={() => { setShowUploadModal(false); setSelectedFile(null); setUploadError(''); }} aria-label="Close upload dialog" className="text-brand-black/40 hover:text-brand-black transition-colors p-2 bg-brand-black/5 rounded-full">
                                 <X size={24} />
                             </button>
                         </div>
                         <div className="p-10">
                             <div className="mb-8 rounded-[2rem] overflow-hidden aspect-square shadow-inner">
-                                {selectedFile && <img src={URL.createObjectURL(selectedFile)} className="w-full h-full object-cover" />}
+                                {previewUrl && <img src={previewUrl} alt="Selected upload preview" className="w-full h-full object-cover" />}
                             </div>
                             <form onSubmit={handleNamedUpload} className="space-y-8">
+                                {uploadError && <p role="alert" className="text-sm font-semibold text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3">{uploadError}</p>}
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-brand-black/40 ml-1">Your Name</label>
                                     <input type="text" value={uploaderName} onChange={(e) => setUploaderName(e.target.value)} placeholder="Enter your name (optional)" className="w-full px-6 py-4 rounded-2xl border border-brand-black/10 bg-white/60 focus:bg-white focus:border-brand-black/20 outline-none transition-all font-bold text-brand-black" />

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import PageLayout from './PageLayout';
 import EditRSVPModal from './EditRSVPModal';
 import { api } from '../utils/api';
-import { Plus, Users, RefreshCw, Copy, Edit, X, Key, Share2 } from 'lucide-react';
+import { Plus, Users, RefreshCw, Edit, X, Key } from 'lucide-react';
 import DeleteButton from './DeleteButton';
 import { useAuth } from '../context/AuthContext';
 import { useGuestList } from '../hooks/useGuestList';
@@ -28,24 +28,61 @@ const GuestDirectory = () => {
     const [editingGuest, setEditingGuest] = useState(null); 
     const [newGuestName, setNewGuestName] = useState('');
     const [copied, setCopied] = useState(null);
+    const [issuedInvite, setIssuedInvite] = useState(null);
+    const [inviteError, setInviteError] = useState('');
 
     // --- ACTIONS ---
-    const handleCopy = (text) => {
+    const handleCopy = async (text, key = text) => {
         if (!text) return;
-        navigator.clipboard.writeText(text);
-        setCopied(text);
-        setTimeout(() => setCopied(null), 2000);
+        try {
+            await navigator.clipboard.writeText(text);
+            setCopied(key);
+            setTimeout(() => setCopied(null), 2000);
+        } catch (error) {
+            console.error('Clipboard write failed', error);
+        }
     };
 
-    const handleShareMagicLink = (guest) => {
-        const url = `${window.location.origin}/?c=${clientId}&token=${guest.accessCode}`;
-        navigator.clipboard.writeText(url);
-        setCopied(`link-${guest.id}`);
-        setTimeout(() => setCopied(null), 2000);
-        
-        // Optional: Open WhatsApp
-        const text = `Hi ${guest.name}! We'd love to have you at our wedding. Please RSVP here: ${url}`;
-        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+    const guestAppOrigin = () => {
+        const configured = import.meta.env.VITE_GUEST_APP_ORIGIN;
+        if (configured) return configured.replace(/\/$/, '');
+        if (window.location.port === '5173') {
+            return `${window.location.protocol}//${window.location.hostname}:3001`;
+        }
+        return window.location.origin;
+    };
+
+    const handleIssueInvitation = async (guest) => {
+        setInviteError('');
+        try {
+            let response;
+            if (guest.linkedUser?.id) {
+                response = await api.createInvitation(guest.linkedUser.id, 72);
+            } else {
+                response = await api.createUser({
+                    role: 'user',
+                    name: guest.name,
+                    clientId,
+                    guestId: guest.id,
+                    expiresInHours: 72
+                });
+            }
+
+            const invitation = response?.invitation || response?.user?._invitation;
+            if (!invitation?.token || !invitation?.loginFragment) {
+                throw new Error(response?.error || 'Unable to issue invitation');
+            }
+
+            setIssuedInvite({
+                guestName: guest.name,
+                token: invitation.token,
+                expiresAt: invitation.expiresAt,
+                url: `${guestAppOrigin()}${invitation.loginFragment}`
+            });
+            await refresh();
+        } catch (error) {
+            setInviteError(error instanceof Error ? error.message : 'Unable to issue invitation');
+        }
     };
 
     const handleAddGuest = async (e) => {
@@ -54,13 +91,6 @@ const GuestDirectory = () => {
         await api.addGuest(newGuestName.trim(), clientId);
         setNewGuestName('');
         refresh();
-    };
-
-    const handleGenerateForGuest = async (guest) => {
-        const res = await api.createUser({ role: 'user', name: guest.name, clientId: clientId, guestId: guest.id });
-        if (res.success) {
-            refresh();
-        }
     };
 
     const handleDetailsUpdate = (updatedData) => {
@@ -74,7 +104,7 @@ const GuestDirectory = () => {
     const handleGuestUpdate = async (e) => {
         e.preventDefault();
         if (!editingGuest || !editingGuest.name.trim()) return;
-        await api.updateGuest(editingGuest.id, editingGuest.name.trim());
+        await api.updateGuest(editingGuest.id, editingGuest.name.trim(), clientId);
         setEditingGuest(null);
         refresh();
     };
@@ -84,12 +114,18 @@ const GuestDirectory = () => {
             if (type === 'rsvp') {
                 await deleteRSVP(id);
             } else if (type === 'guest') {
-                await api.deleteGuest(id);
+                await api.deleteGuest(id, clientId);
             } else if (type === 'token_and_guest') {
-                const { userId } = id;
+                const { userId, guestId } = id;
                 if (userId) {
                     const res = await api.deleteUser(userId);
-                    if (!res.success) console.error("Failed to delete user", res);
+                    if (!res.success) console.error('Failed to delete user', res);
+                }
+                if (guestId) {
+                    const guestRes = await api.deleteGuest(guestId, clientId);
+                    if (!guestRes.success && guestRes.error !== 'Guest not found') {
+                        console.error('Failed to delete guest', guestRes);
+                    }
                 }
             }
         } catch (error) {
@@ -202,32 +238,17 @@ const GuestDirectory = () => {
                                                 </td>
 
                                                 <td className="p-5">
-                                                    {guest.accessCode ? (
-                                                        <div className="flex items-center gap-2">
-                                                            <button
-                                                                onClick={() => handleCopy(guest.accessCode)}
-                                                                className="flex items-center gap-2 font-mono text-xs text-brand-black bg-white/60 border border-white/80 px-4 py-2 rounded-full hover:bg-white transition-all shadow-sm relative group/copy tracking-widest shrink-0"
-                                                                title="Copy Code"
-                                                            >
-                                                                {guest.accessCode}
-                                                                <Copy size={12} className="opacity-40 group-hover/copy:opacity-100 transition-opacity" />
-                                                                {copied === guest.accessCode && <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-brand-black text-white text-[10px] px-2 py-1 rounded shadow-lg font-sans font-bold uppercase tracking-widest">Copied!</span>}
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => handleShareMagicLink(guest)}
-                                                                className="p-2 text-brand-accent hover:bg-brand-accent/10 rounded-full transition-all relative shrink-0"
-                                                                title="Share Magic Link"
-                                                            >
-                                                                <Share2 size={16} />
-                                                                {copied === `link-${guest.id}` && <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-brand-black text-white text-[10px] px-2 py-1 rounded shadow-lg font-sans font-bold uppercase tracking-widest">Link Copied!</span>}
-                                                            </button>
-                                                        </div>
+                                                    {guest.status === 'Active' ? (
+                                                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-lg">
+                                                            RSVP received
+                                                        </span>
                                                     ) : (
                                                         <button
-                                                            onClick={() => handleGenerateForGuest(guest)}
+                                                            onClick={() => handleIssueInvitation(guest)}
                                                             className="text-[10px] bg-white/50 text-brand-black/60 px-2.5 py-1.5 rounded-lg border border-white/60 hover:bg-white hover:text-brand-black font-bold uppercase tracking-wider transition-all shadow-sm whitespace-nowrap"
+                                                            title={guest.linkedUser ? 'Issue a fresh single-use invitation' : 'Create guest account and issue invitation'}
                                                         >
-                                                            Generate
+                                                            {guest.linkedUser ? 'Reissue Invite' : 'Issue Invite'}
                                                         </button>
                                                     )}
                                                 </td>
@@ -236,10 +257,10 @@ const GuestDirectory = () => {
                                                     <div className="flex flex-col items-center justify-center gap-1.5 min-h-[44px]">
                                                         <span className={`px-3 py-1.5 rounded-full text-[9px] uppercase font-bold tracking-[0.2em] border flex items-center gap-1.5 shadow-sm whitespace-nowrap transition-all 
                                                             ${guest.status === 'Active' ? 'bg-green-500/10 text-green-700 border-green-500/20' :
-                                                                guest.status === 'Token Generated' ? 'bg-brand-accent/10 text-brand-accent border-brand-accent/20' :
+                                                                guest.status === 'Invited' ? 'bg-brand-accent/10 text-brand-accent border-brand-accent/20' :
                                                                     'bg-brand-black/5 text-brand-black/40 border-brand-black/10'
                                                             } `}>
-                                                            {guest.status === 'Token Generated' && <Key size={10} className="mb-[1px]" />}
+                                                            {guest.status === 'Invited' && <Key size={10} className="mb-[1px]" />}
                                                             {guest.status}
                                                         </span>
                                                         {guest.status === 'Active' && rsvp.attending === 'no' && (
@@ -294,7 +315,7 @@ const GuestDirectory = () => {
                                                         ) : (
                                                             <>
                                                                 <button onClick={() => setEditingGuest({ id: guest.id, name: guest.name })} className="p-2 text-brand-black/50 hover:text-brand-black hover:bg-white/60 rounded-full transition-all hover:scale-110" title="Edit Guest Name"><Edit size={16} /></button>
-                                                                <DeleteButton onDelete={() => executeDelete(guest.status === 'Token Generated' ? { userId: guest.linkedUser?.id, guestId: guest.id } : guest.id, guest.status === 'Token Generated' ? 'token_and_guest' : 'guest')} size={16} className="p-2 text-brand-black/50 hover:text-brand-black hover:bg-white/60 rounded-full transition-all hover:scale-110" title="Remove Guest" />
+                                                                <DeleteButton onDelete={() => executeDelete(guest.status === 'Invited' ? { userId: guest.linkedUser?.id, guestId: guest.id } : guest.id, guest.status === 'Invited' ? 'token_and_guest' : 'guest')} size={16} className="p-2 text-brand-black/50 hover:text-brand-black hover:bg-white/60 rounded-full transition-all hover:scale-110" title="Remove Guest" />
                                                             </>
                                                         )}
                                                     </div>
@@ -308,6 +329,58 @@ const GuestDirectory = () => {
                     </div>
                 </div>
             </div>
+
+            {issuedInvite && (
+                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-brand-black/30 backdrop-blur-md">
+                    <div className="bg-white/95 rounded-[2rem] p-8 max-w-lg w-full shadow-2xl border border-white space-y-5">
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-brand-accent mb-2">Single-use invitation</p>
+                                <h3 className="text-2xl font-display font-bold text-brand-black">{issuedInvite.guestName}</h3>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setIssuedInvite(null)}
+                                className="p-2 rounded-full bg-brand-black/5 text-brand-black/50 hover:text-brand-black hover:bg-brand-black/10"
+                                aria-label="Close invitation"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <p className="text-sm text-brand-black/60 leading-relaxed">
+                            This link is shown only now. It expires and becomes unusable after the guest signs in successfully.
+                        </p>
+                        <div className="rounded-2xl bg-brand-black/5 border border-brand-black/10 p-4 break-all text-xs font-mono text-brand-black/70">
+                            {issuedInvite.url}
+                        </div>
+                        <div className="flex flex-col sm:flex-row gap-3">
+                            <button
+                                type="button"
+                                onClick={() => handleCopy(issuedInvite.url, 'invite-url')}
+                                className="flex-1 py-3 rounded-full bg-brand-black text-white font-bold text-xs uppercase tracking-widest"
+                            >
+                                {copied === 'invite-url' ? 'Copied' : 'Copy Invitation Link'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const text = `Hi ${issuedInvite.guestName}! We'd love to have you at our wedding. Please RSVP here: ${issuedInvite.url}`;
+                                    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
+                                }}
+                                className="flex-1 py-3 rounded-full border border-brand-black/15 text-brand-black font-bold text-xs uppercase tracking-widest"
+                            >
+                                Share on WhatsApp
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {inviteError && (
+                <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[130] max-w-md w-[calc(100%-2rem)] bg-red-50 border border-red-200 text-red-700 rounded-2xl px-4 py-3 shadow-xl text-sm font-semibold" role="alert">
+                    {inviteError}
+                </div>
+            )}
 
             <EditRSVPModal
                 isOpen={!!editingDetailsRSVP}

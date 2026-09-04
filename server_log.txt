@@ -1,7 +1,0 @@
-
-> wedding-rsvp@0.0.0 server
-> node server/index.js
-
-Server running on http://localhost:3000
-MongoDB Connected: 127.0.0.1
-Seeding Check Complete.

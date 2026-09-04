@@ -73,7 +73,7 @@ const Home = () => {
         <div className="absolute top-4 right-4 flex gap-2 z-30 opacity-0 group-hover:opacity-100 transition-opacity">
             <label htmlFor={id} className="cursor-pointer bg-white/90 p-2 rounded-full hover:bg-white text-zinc-950 shadow-lg" title="Replace Photo">
                 <Camera size={18} />
-                <input type="file" id={id} accept="image/*" className="hidden" onChange={(e) => handleImageUpload(e, imageKey)} />
+                <input type="file" id={id} accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => handleImageUpload(e, imageKey)} />
             </label>
         </div>
     );
@@ -204,7 +204,7 @@ const Home = () => {
                             title={heroImage ? "Change Photo" : "Add Photo"}
                         >
                             <Camera size={13} />
-                            <input type="file" id="hero-upload-bg" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(e, 'heroImage')} />
+                            <input type="file" id="hero-upload-bg" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => handleImageUpload(e, 'heroImage')} />
                         </label>
                     </div>
                 )}

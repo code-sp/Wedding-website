@@ -1,0 +1,72 @@
+.button {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  padding: .75rem 1.15rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  transition: transform var(--motion-fast) ease, box-shadow var(--motion-fast) ease, background-color var(--motion-fast) ease, border-color var(--motion-fast) ease;
+}
+.button:hover { transform: translateY(-1px); }
+.button:active { transform: translateY(1px); }
+.button:focus-visible { outline: 3px solid var(--color-focus-ring); outline-offset: 2px; }
+.button:disabled,
+.button[aria-disabled='true'] { opacity: .55; cursor: not-allowed; transform: none; }
+
+.button-primary {
+  color: var(--color-on-primary);
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-strong));
+  box-shadow: 0 10px 25px rgba(122, 31, 61, .2);
+}
+.button-secondary {
+  color: var(--color-primary-ink);
+  border-color: rgba(122, 31, 61, .26);
+  background: rgba(255, 255, 255, .58);
+}
+.button-ghost {
+  color: var(--color-primary-ink);
+  background: transparent;
+}
+.button-ghost:hover { background: rgba(122, 31, 61, .06); }
+.button-danger {
+  color: #fff;
+  background: var(--color-danger);
+}
+
+.button-sm { min-height: 44px; padding-inline: .9rem; font-size: var(--text-sm); }
+.button-lg { min-height: 50px; padding-inline: 1.35rem; font-size: var(--text-md); }
+
+.surface-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.focus-ring:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.text-muted { color: var(--color-text-muted); }
+.text-secondary { color: var(--color-text-secondary); }
+.text-accent { color: var(--color-accent-ink); }
+
+/* Gold remains decorative; text uses AA-safe ink variants on ivory surfaces. */
+.event-board span { color: var(--color-accent-ink); }
+.carousel-board span { color: var(--scene-accent-ink, var(--color-primary-ink)); }
+
+@media (max-width: 639px) {
+  .button-responsive { width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button { transition-duration: .001ms; }
+}

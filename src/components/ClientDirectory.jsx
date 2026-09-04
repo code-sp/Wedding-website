@@ -79,6 +79,7 @@ const ClientDirectory = () => {
                     type: 'success',
                     message: 'Portal created successfully!',
                     token: res.ownerToken,
+                    loginFragment: res.ownerLoginFragment,
                     clientId: res.client?._id || res.client?.id || id
                 });
                 setNewClient({ id: '', name: '' });
@@ -90,6 +91,29 @@ const ClientDirectory = () => {
             setStatus({ type: 'error', message: 'Server error. Please try again.' });
         } finally {
             setCreating(false);
+        }
+    };
+
+    const handleIssueInvite = async (client) => {
+        if (!client?.ownerId) {
+            setStatus({ type: 'error', message: 'This portal does not have an organiser account.' });
+            return;
+        }
+        try {
+            const res = await api.createInvitation(client.ownerId, 72);
+            if (res?.invitation?.token) {
+                setStatus({
+                    type: 'success',
+                    message: `New organiser invitation created for ${client.name}.`,
+                    token: res.invitation.token,
+                    loginFragment: res.invitation.loginFragment,
+                    clientId: client._id || client.id
+                });
+                return;
+            }
+            setStatus({ type: 'error', message: res?.error || 'Unable to issue invitation.' });
+        } catch (error) {
+            setStatus({ type: 'error', message: 'Unable to issue invitation.' });
         }
     };
 
@@ -232,7 +256,7 @@ const ClientDirectory = () => {
                                                 <div className="space-y-3 pt-3 border-t border-emerald-500/20">
                                                     {/* Token */}
                                                     <div>
-                                                        <p className="text-[9px] uppercase tracking-widest text-emerald-400/60 font-bold mb-1.5">Client Login Token</p>
+                                                        <p className="text-[9px] uppercase tracking-widest text-emerald-400/60 font-bold mb-1.5">Single-use Organiser Invitation</p>
                                                         <div className="flex items-center gap-2 bg-black/20 rounded-lg px-3 py-2">
                                                             <Key size={11} className="text-emerald-400/50 shrink-0" />
                                                             <code className="flex-1 font-mono text-xs font-bold tracking-wider text-emerald-200 truncate">{status.token}</code>
@@ -267,7 +291,7 @@ const ClientDirectory = () => {
                                                         </div>
                                                     </div>
                                                     <p className="text-[9px] text-emerald-400/50 leading-relaxed">
-                                                        Share the token with your client so they can login. Keep it confidential.
+                                                        Share this invitation once. It expires and cannot be reused after successful sign-in.
                                                     </p>
                                                 </div>
                                             )}
@@ -368,23 +392,20 @@ const ClientDirectory = () => {
                                                         </div>
                                                     </div>
 
-                                                    {/* Token row */}
+                                                    {/* Credential state — secrets are never returned in list responses */}
                                                     <div className="mt-3 flex items-center gap-2 bg-black/20 rounded-xl px-3 py-2.5">
                                                         <Key size={11} className="text-white/30 shrink-0" />
-                                                        <span className="text-[9px] uppercase tracking-widest text-white/30 font-bold mr-1 shrink-0">Token</span>
-                                                        <code className="flex-1 font-mono text-xs font-bold text-white/70 tracking-wider truncate">
-                                                            {client.ownerToken || '—'}
-                                                        </code>
-                                                        {client.ownerToken && (
+                                                        <span className="text-[9px] uppercase tracking-widest text-white/30 font-bold mr-1 shrink-0">Credential</span>
+                                                        <span className="flex-1 text-[10px] text-white/45 truncate">
+                                                            {client.hasLegacyCredential ? 'Legacy credential retires on next login' : 'Secret not stored'}
+                                                        </span>
+                                                        {client.ownerId && (
                                                             <button
-                                                                onClick={() => copyToClipboard(client.ownerToken, `token-${clientId}`)}
-                                                                className="p-1 rounded hover:bg-white/10 transition-colors shrink-0"
-                                                                title="Copy token"
+                                                                onClick={() => handleIssueInvite(client)}
+                                                                className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-[9px] font-bold uppercase tracking-wider text-white/60 hover:text-white transition-colors shrink-0"
+                                                                title="Issue a new single-use organiser invitation"
                                                             >
-                                                                {copiedKey === `token-${clientId}`
-                                                                    ? <CheckCircle size={12} className="text-emerald-400" />
-                                                                    : <Copy size={12} className="text-white/30" />
-                                                                }
+                                                                Issue Invite
                                                             </button>
                                                         )}
                                                     </div>

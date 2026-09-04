@@ -130,7 +130,7 @@ const TreeNode = ({ node, onUpdate, onAddChild, onAddPartner, onAddParent, onAdd
                             <Upload className="text-white" size={24} />
                         </button>
                     )}
-                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
+                    <input type="file" ref={fileInputRef} className="hidden" accept="image/jpeg,image/png,image/webp" onChange={handleImageUpload} />
                 </motion.div>
                 
                 {/* Gender Indicator Dot */}

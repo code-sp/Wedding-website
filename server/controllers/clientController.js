@@ -1,146 +1,208 @@
-import { Client, Content, User, AllowedGuest } from '../models.js';
+import crypto from 'crypto';
+import {
+  Client,
+  Content,
+  User,
+  AllowedGuest,
+  RSVP,
+  Session,
+  InvitationToken,
+  Asset,
+  SeatReservation,
+  RoomReservation
+} from '../models.js';
 import * as defaults from '../defaults.js';
+import { issueInvitationToken } from '../security/invitation.js';
 
-export const getClients = async (req, res) => {
-    try {
-        const clients = await Client.find({});
-        const clientsWithTokens = await Promise.all(clients.map(async (client) => {
-            const owner = await User.findOne({ clientId: client._id, role: 'client' });
-            return {
-                ...client.toObject(),
-                ownerToken: owner ? owner.access_code : null,
-                ownerName: owner && owner.is_registered ? owner.name : null,
-                isRegistered: owner ? owner.is_registered : false
-            };
-        }));
-        res.json(clientsWithTokens);
-    } catch (e) {
-        res.status(500).json({ error: 'Failed to fetch clients' });
-    }
+const cleanText = (value, max = 120) => String(value ?? '')
+  .replace(/[<>]/g, '')
+  .replace(/\s+/g, ' ')
+  .trim()
+  .slice(0, max);
+
+const cleanClientId = (value) => cleanText(value, 80)
+  .toLowerCase()
+  .replace(/[^a-z0-9_-]/g, '-')
+  .replace(/-+/g, '-')
+  .replace(/^[-_]+|[-_]+$/g, '');
+
+export const getClients = async (_req, res) => {
+  try {
+    const clients = await Client.find({}).sort({ createdAt: -1 });
+    const owners = await User.find({
+      clientId: { $in: clients.map((client) => client._id) },
+      role: 'client'
+    }).select('_id clientId name is_registered profile_complete access_code');
+
+    const ownerByClient = new Map(owners.map((owner) => [owner.clientId, owner]));
+
+    return res.json(clients.map((client) => {
+      const owner = ownerByClient.get(client._id);
+      return {
+        ...client.toObject(),
+        ownerId: owner?._id || null,
+        ownerName: owner?.name || null,
+        isRegistered: Boolean(owner?.is_registered),
+        profileComplete: Boolean(owner?.profile_complete),
+        hasLegacyCredential: Boolean(owner?.access_code)
+      };
+    }));
+  } catch (error) {
+    console.error('Client list failed', error);
+    return res.status(500).json({ error: 'Failed to fetch clients' });
+  }
 };
 
-export const getGlobalStats = async (req, res) => {
-    try {
-        const { Client, RSVP, User } = await import('../models.js');
-        const [clientCount, rsvpCount, userCount] = await Promise.all([
-            Client.countDocuments(),
-            RSVP.countDocuments(),
-            User.countDocuments({ role: 'user' })
-        ]);
-        res.json({
-            portals: clientCount,
-            totalRSVPs: rsvpCount,
-            totalUsers: userCount
-        });
-    } catch (e) {
-        res.status(500).json({ portals: 0, totalRSVPs: 0, totalUsers: 0 });
-    }
+export const getGlobalStats = async (_req, res) => {
+  try {
+    const [clientCount, rsvpCount, userCount] = await Promise.all([
+      Client.countDocuments(),
+      RSVP.countDocuments(),
+      User.countDocuments({ role: 'user' })
+    ]);
+    return res.json({
+      portals: clientCount,
+      totalRSVPs: rsvpCount,
+      totalUsers: userCount
+    });
+  } catch {
+    return res.status(500).json({ portals: 0, totalRSVPs: 0, totalUsers: 0 });
+  }
 };
 
 export const createClient = async (req, res) => {
-    try {
-        const { id, name, occasion, brideName, groomName, personName, contactDetail, address } = req.body;
-        if (!id || !name) return res.status(400).json({ error: 'ID and Name required' });
+  let clientId = '';
+  try {
+    clientId = cleanClientId(req.body.id);
+    const name = cleanText(req.body.name, 120);
+    if (!clientId || !name) return res.status(400).json({ error: 'Valid ID and name are required' });
+    if (clientId === 'default_client') return res.status(409).json({ error: 'Reserved client ID' });
 
-        // 1. Check if exists
-        const exists = await Client.exists({ _id: id });
-        if (exists) return res.status(400).json({ error: 'Client ID already exists' });
+    const exists = await Client.exists({ _id: clientId });
+    if (exists) return res.status(409).json({ error: 'Client ID already exists' });
 
-        // 2. Generate Permanent CL_ Token for Client Owner (CL_ + 5 Alphanum)
-        let token = '';
-        let isUnique = false;
-        while (!isUnique) {
-            const random = Math.random().toString(36).substring(2, 7).toUpperCase();
-            token = `CL_${random}`;
-            const collision = await User.exists({ access_code: token });
-            if (!collision) isUnique = true;
-        }
+    const newClient = await Client.create({
+      _id: clientId,
+      name,
+      occasion: cleanText(req.body.occasion, 40) || 'wedding',
+      brideName: cleanText(req.body.brideName, 100),
+      groomName: cleanText(req.body.groomName, 100),
+      personName: cleanText(req.body.personName, 100),
+      contactDetail: cleanText(req.body.contactDetail, 160),
+      address: cleanText(req.body.address, 300)
+    });
 
-        // 3. Create Client record
-        const newClient = await Client.create({ 
-            _id: id, 
-            name,
-            occasion: occasion || 'wedding',
-            brideName,
-            groomName,
-            personName,
-            contactDetail,
-            address
-        });
+    const owner = await User.create({
+      _id: `user_${crypto.randomUUID()}`,
+      role: 'client',
+      clientId,
+      name: cleanText(req.body.personName || req.body.brideName, 100) || `${name} Organiser`,
+      is_registered: false,
+      profile_complete: false
+    });
 
-        // 4. Create Client Owner User with CL token (Registered by default)
-        const owner = await User.create({
-            _id: `user_${id}_owner`,
-            role: 'client',
-            clientId: id,
-            name: personName || brideName || `${name} Owner`,
-            access_code: token,
-            is_registered: true
-        });
+    const { rawToken, record } = await issueInvitationToken({
+      user: owner,
+      createdBy: req.auth.userId,
+      purpose: 'portal-invite',
+      expiresInHours: req.body.expiresInHours || 72
+    });
 
-        // 5. Store client details in Client Directory (Guest List) of the new portal
-        await AllowedGuest.create({
-             clientId: id,
-             name: `${name} Owner`,
-             isClaimed: true,
-             claimedBy: `user_${id}_owner`
-        });
+    await AllowedGuest.create({
+      clientId,
+      name: owner.name,
+      isClaimed: true,
+      claimedBy: owner._id
+    });
 
-        // 6. Seed Default Content for this new client
-        const contentToSeed = [
-            { key: 'events', value: [] },
-            { key: 'gallery', value: [] },
-            { key: 'stories', value: [] },
-            { key: 'home_data', value: defaults.defaultHomeData },
-            { key: 'contact_data', value: { 
-                contactCards: [
-                    { title: "Bride's Family", name: "Client Contact", phone: "+91 xxxxx xxxxx", email: "support@example.com" },
-                    { title: "Groom's Family", name: "Client Contact", phone: "+91 xxxxx xxxxx", email: "support@example.com" }
-                ],
-                venueName: "Your Grand Venue",
-                venueAddress: "City, State, 12345",
-                venueMapsLink: "https://maps.google.com",
-                faqs: []
-            }},
-            { key: 'client_settings', value: { 
-                enabledTabs: ['home', 'story', 'events', 'moments', 'gallery', 'rsvp', 'contact', 'family_tree'],
-                customTabs: [],
-                rooms: [
-                    { id: 1, name: 'Deluxe Suite', type: 'King Bed', capacity: 2, price: '$200', available: 3 },
-                    { id: 2, name: 'Garden View', type: 'Queen Bed', capacity: 2, price: '$150', available: 5 },
-                    { id: 3, name: 'Family Room', type: '2 Queen Beds', capacity: 4, price: '$250', available: 2 }
-                ],
-                seatingConfig: [
-                    { id: "vip", name: "VIP Section", type: "sofa", rows: 3, colsPerSide: 9, price: 100 },
-                    { id: "general", name: "General Section", type: "chair", rows: 10, colsPerSide: 10, price: 50 }
-                ]
-            }},
-            { key: 'family_people', value: [] },
-            { key: 'groom_family_people', value: [] }
-        ];
+    const contentToSeed = [
+      { key: 'events', value: [] },
+      { key: 'gallery', value: [] },
+      { key: 'moments', value: [] },
+      { key: 'stories', value: [] },
+      { key: 'home_data', value: defaults.defaultHomeData },
+      { key: 'contact_data', value: defaults.defaultContactData },
+      { key: 'client_settings', value: defaults.defaultClientSettings },
+      { key: 'family_people', value: [] },
+      { key: 'family_families', value: [] },
+      { key: 'family_links', value: [] },
+      { key: 'groom_family_people', value: [] },
+      { key: 'groom_family_families', value: [] },
+      { key: 'groom_family_links', value: [] }
+    ];
 
-        for (const item of contentToSeed) {
-            await Content.create({ key: item.key, clientId: id, value: item.value });
-        }
+    await Content.insertMany(contentToSeed.map((item) => ({
+      ...item,
+      clientId
+    })));
 
-        res.json({ success: true, client: newClient, ownerToken: token });
-    } catch (e) {
-        console.error(e);
-        res.status(500).json({ error: 'Failed to create client' });
+    return res.status(201).json({
+      success: true,
+      client: newClient,
+      owner: {
+        id: owner._id,
+        name: owner.name
+      },
+      ownerInvitation: {
+        token: rawToken,
+        expiresAt: record.expiresAt,
+        loginFragment: `/login#invite=${encodeURIComponent(rawToken)}`
+      }
+    });
+  } catch (error) {
+    console.error('Client creation failed', error);
+
+    if (clientId) {
+      const rollbackUsers = await User.find({ clientId }).select('_id');
+      const rollbackUserIds = rollbackUsers.map((user) => user._id);
+      await Promise.allSettled([
+        Client.deleteOne({ _id: clientId }),
+        Content.deleteMany({ clientId }),
+        AllowedGuest.deleteMany({ clientId }),
+        RSVP.deleteMany({ clientId }),
+        Session.deleteMany({ userId: { $in: rollbackUserIds } }),
+        InvitationToken.deleteMany({ clientId }),
+        Asset.deleteMany({ clientId }),
+        SeatReservation.deleteMany({ clientId }),
+        RoomReservation.deleteMany({ clientId }),
+        User.deleteMany({ clientId })
+      ]);
     }
+
+    return res.status(500).json({ error: 'Failed to create client' });
+  }
 };
 
 export const deleteClient = async (req, res) => {
-    try {
-        const { id } = req.params;
-        if (id === 'default_client') return res.status(403).json({ error: 'Cannot delete primary client' });
-
-        await Client.findByIdAndDelete(id);
-        await Content.deleteMany({ clientId: id });
-        await User.deleteMany({ clientId: id });
-        
-        res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ error: 'Failed to delete client' });
+  try {
+    const clientId = cleanClientId(req.params.id);
+    if (!clientId) return res.status(400).json({ error: 'Invalid client ID' });
+    if (clientId === 'default_client') {
+      return res.status(403).json({ error: 'Cannot delete primary client' });
     }
+
+    const exists = await Client.exists({ _id: clientId });
+    if (!exists) return res.status(404).json({ error: 'Client not found' });
+
+    const users = await User.find({ clientId }).select('_id');
+    const userIds = users.map((user) => user._id);
+
+    await Promise.all([
+      Content.deleteMany({ clientId }),
+      RSVP.deleteMany({ clientId }),
+      AllowedGuest.deleteMany({ clientId }),
+      InvitationToken.deleteMany({ clientId }),
+      Asset.deleteMany({ clientId }),
+      SeatReservation.deleteMany({ clientId }),
+      RoomReservation.deleteMany({ clientId }),
+      Session.deleteMany({ userId: { $in: userIds } }),
+      User.deleteMany({ clientId })
+    ]);
+    await Client.deleteOne({ _id: clientId });
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('Client deletion failed', error);
+    return res.status(500).json({ error: 'Failed to delete client' });
+  }
 };

@@ -60,7 +60,7 @@ export const ImageProvider = ({ children }) => {
 
     // RSVP
     const [rsvpSubmissions, setRsvpSubmissions] = useState([]);
-    const { clientId } = useAuth();
+    const { clientId, user, isAdmin, isClient } = useAuth();
 
     // Initial Fetch
     useEffect(() => {
@@ -102,7 +102,7 @@ export const ImageProvider = ({ children }) => {
                     api.getContent('groom_family_people', clientId),
                     api.getContent('groom_family_families', clientId),
                     api.getContent('groom_family_links', clientId),
-                    api.getAllRSVPs(clientId),
+                    (isAdmin || isClient) ? api.getAllRSVPs(clientId) : api.getSeatOccupancy(),
                     api.getContent('client_settings', clientId)
                 ]);
 
@@ -125,7 +125,19 @@ export const ImageProvider = ({ children }) => {
                 setGroomFamilies(gf || []);
                 setGroomLinks(gl || []);
 
-                setRsvpSubmissions(rsvps || []);
+                if (isAdmin || isClient) {
+                    setRsvpSubmissions(Array.isArray(rsvps) ? rsvps : []);
+                } else {
+                    const occupancy = Array.isArray(rsvps) ? rsvps : [];
+                    const ownRsvp = user?.rsvpData || null;
+                    const synthetic = occupancy.map((seat, index) => ({
+                        id: seat.mine && ownRsvp?.id ? ownRsvp.id : `occupied-seat-${index}`,
+                        userId: seat.mine ? user?.id : undefined,
+                        seatNumbers: [seat.seatNumber]
+                    }));
+                    if (ownRsvp) synthetic.push({ ...ownRsvp, userId: user?.id });
+                    setRsvpSubmissions(synthetic);
+                }
 
                 console.log('[IMAGE_CONTEXT] State hydration finished successfully.');
 
@@ -136,37 +148,52 @@ export const ImageProvider = ({ children }) => {
             }
         };
         loadAll();
-    }, [clientId]);
+    }, [clientId, user?.id, user?.rsvpData, isAdmin, isClient]);
 
     // --- Actions ---
 
-    // Generic helper to update local state AND server
-    const updateServerContent = (key, data) => {
-        console.log('[IMAGE_CONTEXT] Syncing', key, 'to server for clientId:', clientId);
-        api.updateContent(key, data, clientId).catch(err => console.error(`[IMAGE_CONTEXT] ERROR: Failed to sync ${key}`, err));
+    const applyContentState = (key, value) => {
+        if (key === 'gallery') setGalleryPhotos(value);
+        if (key === 'moments') setMomentsPhotos(value);
+        if (key === 'events') setEvents(value);
+        if (key === 'stories') setStories(value);
+        if (key === 'home_data') setHomeData(value);
+        if (key === 'contact_data') setContactData(value);
+        if (key === 'client_settings') setSettings(value);
+        if (key === 'family_people') setPeople(value);
+        if (key === 'family_families') setFamilies(value);
+        if (key === 'family_links') setLinks(value);
+        if (key === 'groom_family_people') setGroomPeople(value);
+        if (key === 'groom_family_families') setGroomFamilies(value);
+        if (key === 'groom_family_links') setGroomLinks(value);
     };
 
-    // Events
+    // Generic helper to update local state AND server, then reconcile asset URLs.
+    const updateServerContent = async (key, data) => {
+        console.log('[IMAGE_CONTEXT] Syncing', key, 'to server for clientId:', clientId);
+        try {
+            const result = await api.updateContent(key, data, clientId);
+            if (result?.value !== undefined) applyContentState(key, result.value);
+            return result;
+        } catch (err) {
+            console.error(`[IMAGE_CONTEXT] ERROR: Failed to sync ${key}`, err);
+            return { success: false, error: err };
+        }
+    };
 
-    // --- GENERALIZED SYNC METHOD (Optimistic) ---
+    // --- GENERALIZED SYNC METHOD (Optimistic + authoritative reconciliation) ---
     const updateContentData = async (key, payload) => {
         console.log('[IMAGE_CONTEXT] Triggering Optimistic Update for:', key);
-        // 1. Update Local State Immediately (Optimistic)
-        if (key === 'gallery') setGalleryPhotos(payload);
-        if (key === 'moments') setMomentsPhotos(payload);
-        if (key === 'events') setEvents(payload);
-        if (key === 'stories') setStories(payload);
-        if (key === 'home_data') setHomeData(payload);
-        if (key === 'contact_data') setContactData(payload);
-        if (key === 'client_settings') setSettings(payload);
+        applyContentState(key, payload);
 
-        // 2. Sync to Server in background
         try {
-            await api.updateContent(key, payload, clientId);
+            const result = await api.updateContent(key, payload, clientId);
+            if (result?.value !== undefined) applyContentState(key, result.value);
             console.log('[IMAGE_CONTEXT] Background sync successful for:', key);
+            return result;
         } catch (error) {
             console.error(`[IMAGE_CONTEXT] ERROR: Failed to sync ${key} data to server:`, error);
-            // Optionally: Rollback local state on critical failure
+            return { success: false, error };
         }
     };
 

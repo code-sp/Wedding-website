@@ -1,10 +1,12 @@
 import express from 'express';
-import { submitRSVP, getAllRSVPs, deleteRSVP } from '../controllers/rsvpController.js';
+import { submitRSVP, getMyRSVP, getAllRSVPs, deleteRSVP } from '../controllers/rsvpController.js';
+import { authenticate, authorize, requireProfileComplete } from '../middleware/auth.js';
 
 const router = express.Router();
 
-router.post('/rsvp', submitRSVP);
-router.get('/rsvps', getAllRSVPs);
-router.delete('/rsvp/:id', deleteRSVP);
+router.get('/rsvp', authenticate, requireProfileComplete, getMyRSVP);
+router.post('/rsvp', authenticate, requireProfileComplete, submitRSVP);
+router.get('/rsvps', authenticate, requireProfileComplete, authorize('admin', 'client'), getAllRSVPs);
+router.delete('/rsvp/:id', authenticate, requireProfileComplete, authorize('admin', 'client'), deleteRSVP);
 
 export default router;

@@ -1,254 +1,133 @@
-import { User, RSVP, AllowedGuest } from '../models.js';
+import crypto from 'crypto';
+import { User, RSVP, AllowedGuest, Session, InvitationToken, SeatReservation, RoomReservation } from '../models.js';
+import { issueInvitationToken } from '../security/invitation.js';
 
-const GLOBAL_PASSCODE = 'Forever2025';
+const cleanName = (value) => String(value ?? '')
+  .replace(/[<>]/g, '')
+  .replace(/\s+/g, ' ')
+  .trim()
+  .slice(0, 100);
 
-// Login with Access Code OR Global Passcode
-export const login = async (req, res) => {
-    try {
-        const { code } = req.body;
-        if (!code) return res.status(400).json({ error: 'Code required' });
-
-        // 1. Check Global Passcode
-        if (code === GLOBAL_PASSCODE) {
-            return res.json({ success: true, requireName: true });
-        }
-
-        // 2. Check Individual User Token
-        const user = await User.findOne({ access_code: code });
-
-        if (user) {
-            const requestedClientId = req.body.clientId || 'default_client';
-            
-            // Only admins can log in to any client portal. Clients and Users are tied to their own clientId.
-            // Exception: If they are logging in from the root page (default_client), allow them. They will be implicitly routed.
-            if (user.role !== 'admin' && user.clientId && requestedClientId !== 'default_client' && user.clientId !== requestedClientId) {
-                return res.status(401).json({ success: false, error: 'Invalid Access Code for this wedding' });
-            }
-
-            // Check for dedicated RSVP entry
-            const rsvp = await RSVP.findOne({ userId: user._id });
-
-            const userData = {
-                id: user._id,
-                role: user.role,
-                clientId: user.clientId || 'default_client',
-                name: user.name,
-                access_code: user.access_code,
-                isRegistered: user.is_registered || !!rsvp,
-                rsvpData: rsvp ? rsvp.data : (user.rsvp_data || null)
-            };
-
-            return res.json({ success: true, user: userData });
-        }
-
-        // 3. Fallback: Check if they are trying to use an old registration token
-        const oldUser = await User.findOne({ old_access_code: code });
-        if (oldUser) {
-            return res.status(401).json({ 
-                success: false, 
-                error: `Check your inbox! Your celebration access code has been sent.` 
-            });
-        }
-
-        return res.status(401).json({ success: false, error: 'Invalid Access Code' });
-    } catch (e) {
-        console.error(e);
-        res.status(500).json({ error: 'Server error' });
-    }
+const resolveTenant = (req) => {
+  if (req.auth.role === 'admin') return String(req.body.clientId || req.query.clientId || '').trim();
+  return req.auth.clientId;
 };
 
-// Register Guest (via Global Passcode)
-export const registerGuest = async (req, res) => {
-    try {
-        const { name, globalCode } = req.body;
-
-        if (globalCode !== GLOBAL_PASSCODE) {
-            return res.status(401).json({ error: 'Invalid Global Code' });
-        }
-
-        if (!name) return res.status(400).json({ error: 'Name required' });
-
-        // 1. Check Smart Guest List (Whitelist)
-        // Case insensitive match
-        const allowedGuest = await AllowedGuest.findOne({
-            name: { $regex: new RegExp(`^${name.trim()}$`, 'i') }
-        });
-
-        if (!allowedGuest) {
-            // Allow any guest to register (Bypass Whitelist)
-            // return res.status(403).json({ error: 'Sorry, we could not find your name on the guest list. Please contact the hosts.' });
-        } else if (allowedGuest.isClaimed) {
-            return res.status(403).json({ error: 'This name has already been registered. Please login with your access code.' });
-        }
-
-        // Generate Unique SP_ Code (SP_ + 5 Alphanum) for permanent user token
-        const personalToken = 'SP_' + Math.random().toString(36).substring(2, 7).toUpperCase();
-
-        const officialName = allowedGuest ? allowedGuest.name : name.trim();
-
-        const newUser = await User.create({
-            _id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-            role: 'user',
-            clientId: req.body.clientId || 'default_client', // Use from request
-            name: officialName,
-            access_code: personalToken,
-            is_registered: false // They just entered name, haven't RSVPed yet
-        });
-
-        // Mark as claimed IF it was in the list
-        if (allowedGuest) {
-            allowedGuest.isClaimed = true;
-            allowedGuest.claimedBy = newUser._id;
-            await allowedGuest.save();
-        }
-
-        const userData = {
-            id: newUser._id,
-            role: newUser.role,
-            clientId: newUser.clientId,
-            name: newUser.name,
-            access_code: newUser.access_code,
-            isRegistered: false,
-            rsvpData: null
-        };
-
-        // Return same structure as login success
-        res.json({ success: true, user: userData });
-
-    } catch (e) {
-        console.error(e);
-        res.status(500).json({ error: 'Failed to register guest' });
-    }
-};
-
-// Create New User (Token Generation) - Admin Tool
 export const createUser = async (req, res) => {
+  try {
+    const requestedRole = String(req.body.role || 'user');
+    const role = req.auth.role === 'admin'
+      ? (requestedRole === 'client' ? 'client' : 'user')
+      : 'user';
+
+    const clientId = resolveTenant(req);
+    const name = cleanName(req.body.name) || 'Invited Guest';
+    if (!clientId) return res.status(400).json({ error: 'clientId required' });
+
+    const newUser = await User.create({
+      _id: `user_${crypto.randomUUID()}`,
+      role,
+      clientId,
+      name,
+      is_registered: false,
+      profile_complete: false
+    });
+
+    let invitation = null;
     try {
-        const { role, name, access_code, clientId } = req.body;
-        let token = access_code;
-        
-        if (!token) {
-            // Generate Permanent Token (CL_ for clients, SP_ for users) + 6 Alphanum
-            const prefix = role === 'client' ? 'CL_' : 'SP_';
-            let isUnique = false;
-            while (!isUnique) {
-                const random = Math.random().toString(36).substring(2, 8).toUpperCase();
-                token = `${prefix}${random}`;
-                const collision = await User.exists({ access_code: token });
-                if (!collision) isUnique = true;
-            }
-        }
-
-        const newUser = await User.create({
-            _id: `user_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-            role: role || 'user',
-            clientId: clientId || 'default_client', 
-            name: name || 'Invited Guest',
-            access_code: token,
-            is_registered: false
-        });
-
-        if (req.body.guestId) {
-            const { AllowedGuest } = await import('../models.js');
-            await AllowedGuest.findByIdAndUpdate(req.body.guestId, {
-                isClaimed: true,
-                claimedBy: newUser._id
-            });
-        }
-
-        res.json({ success: true, user: newUser });
-    } catch (e) {
-        console.error(e);
-        res.status(500).json({ error: 'Failed to create user' });
+      const { rawToken, record } = await issueInvitationToken({
+        user: newUser,
+        createdBy: req.auth.userId,
+        purpose: role === 'client' ? 'portal-invite' : 'invite',
+        expiresInHours: req.body.expiresInHours
+      });
+      invitation = {
+        token: rawToken,
+        expiresAt: record.expiresAt,
+        loginFragment: `/login#invite=${encodeURIComponent(rawToken)}`
+      };
+    } catch (error) {
+      await User.deleteOne({ _id: newUser._id });
+      throw error;
     }
+
+    if (req.body.guestId) {
+      await AllowedGuest.findOneAndUpdate(
+        { _id: req.body.guestId, clientId },
+        { isClaimed: true, claimedBy: newUser._id }
+      );
+    }
+
+    return res.status(201).json({
+      success: true,
+      user: {
+        id: newUser._id,
+        name: newUser.name,
+        role: newUser.role,
+        clientId: newUser.clientId
+      },
+      ...(invitation ? { invitation } : {})
+    });
+  } catch (error) {
+    console.error('User provisioning failed', error);
+    return res.status(500).json({ error: 'Unable to create user' });
+  }
 };
 
 export const getUsers = async (req, res) => {
-    try {
-        const { clientId } = req.query;
-        if (!clientId) return res.status(400).json({ error: 'clientId required' });
-        const query = { clientId };
-        const users = await User.find(query);
+  try {
+    const clientId = req.auth.role === 'admin'
+      ? String(req.query.clientId || '').trim()
+      : req.auth.clientId;
 
-        // SECURITY FIX: Map to DTO, exclude internal/sensitive fields if needed.
-        // For Admin Token Manager, they actually NEED the access_code to see it.
-        // BUT, we should probably only allow this for Admins in a real app.
-        // For now, we will return it but at least structured cleanly.
+    if (!clientId) return res.status(400).json({ error: 'clientId required' });
 
-        const safeUsers = users.map(u => ({
-            id: u._id,
-            name: u.name,
-            role: u.role,
-            access_code: u.access_code, // Still needed for Admin UI to Work
-            is_registered: u.is_registered
-        }));
+    const users = await User.find({ clientId })
+      .select('_id name role access_code is_registered profile_complete')
+      .sort({ name: 1 });
 
-        res.json(safeUsers);
-    } catch (e) {
-        res.status(500).json([]);
-    }
+    return res.json(users.map((user) => ({
+      id: user._id,
+      name: user.name,
+      role: user.role,
+      hasLegacyAccessCode: Boolean(user.access_code),
+      rsvpComplete: Boolean(user.is_registered),
+      profileComplete: Boolean(user.profile_complete)
+    })));
+  } catch (error) {
+    console.error('User list failed', error);
+    return res.status(500).json({ error: 'Unable to load users' });
+  }
 };
 
 export const deleteUser = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const result = await User.findByIdAndDelete(id);
-        if (!result) {
-            return res.status(404).json({ success: false, error: 'User not found' });
-        }
-        res.json({ success: true });
-    } catch (e) {
-        console.error(e);
-        res.status(500).json({ error: 'Failed to delete user' });
+  try {
+    const target = await User.findById(req.params.id);
+    if (!target) return res.status(404).json({ error: 'User not found' });
+
+    if (req.auth.role !== 'admin' && target.clientId !== req.auth.clientId) {
+      return res.status(403).json({ error: 'User belongs to another wedding' });
     }
-};
-
-// --- PHASE 3: CLIENT PORTAL ACTIVATION ---
-export const completeClientRegistration = async (req, res) => {
-    try {
-        const { userId, name, formData } = req.body;
-        const user = await User.findById(userId);
-        
-        if (!user || user.role !== 'client') {
-            return res.status(403).json({ error: 'Unauthorized or invalid user' });
-        }
-
-        if (user.is_registered && user.access_code.startsWith('CL_')) {
-            return res.status(400).json({ error: 'Client already registered' });
-        }
-
-        // Generate Permanent CL Token (CL_ + 6 Alphanum)
-        let newToken = '';
-        let isUnique = false;
-        
-        while (!isUnique) {
-            const random = Math.random().toString(36).substring(2, 8).toUpperCase();
-            newToken = `CL_${random}`;
-            const collision = await User.exists({ access_code: newToken });
-            if (!collision) isUnique = true;
-        }
-
-        // Update User
-        user.name = name || user.name;
-        user.access_code = newToken;
-        user.is_registered = true;
-        if (formData) {
-            user.rsvp_data = formData;
-            
-            // Also create an RSVP entry
-            const newRsvp = new RSVP({
-                _id: `rsvp_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-                userId: user._id,
-                clientId: user.clientId,
-                data: formData
-            });
-            await newRsvp.save();
-        }
-        await user.save();
-
-        res.json({ success: true, token: newToken });
-    } catch (e) {
-        console.error(e);
-        res.status(500).json({ error: 'Registration failed' });
+    if (target.role === 'admin') {
+      return res.status(403).json({ error: 'Admin accounts cannot be deleted here' });
     }
+
+    await Promise.all([
+      RSVP.deleteMany({ userId: target._id }),
+      Session.deleteMany({ userId: target._id }),
+      InvitationToken.deleteMany({ userId: target._id }),
+      SeatReservation.deleteMany({ userId: target._id }),
+      RoomReservation.deleteMany({ userId: target._id }),
+      AllowedGuest.updateMany(
+        { claimedBy: target._id },
+        { $set: { isClaimed: false, claimedBy: null } }
+      )
+    ]);
+    await User.findByIdAndDelete(target._id);
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('User deletion failed', error);
+    return res.status(500).json({ error: 'Unable to delete user' });
+  }
 };

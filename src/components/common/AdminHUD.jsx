@@ -74,6 +74,7 @@ const AdminHUD = ({
                     >
                         <StandardButton
                             onClick={isEditing ? onSave : onEdit}
+                            title={isEditing ? saveLabel : editLabel}
                             variant={isEditing ? 'primary' : 'secondary'}
                             icon={isEditing ? Save : editIcon}
                             expandable
@@ -96,6 +97,7 @@ const AdminHUD = ({
                     >
                         <StandardButton
                             onClick={onAdd}
+                            title={addLabel}
                             variant="primary"
                             icon={Plus}
                             expandable
