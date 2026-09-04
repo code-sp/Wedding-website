@@ -369,25 +369,13 @@ const ClientDirectory = () => {
                                                         </div>
                                                     </div>
 
-                                                    {/* Token row */}
+                                                    {/* Credential state — secrets are never returned in list responses */}
                                                     <div className="mt-3 flex items-center gap-2 bg-black/20 rounded-xl px-3 py-2.5">
                                                         <Key size={11} className="text-white/30 shrink-0" />
-                                                        <span className="text-[9px] uppercase tracking-widest text-white/30 font-bold mr-1 shrink-0">Token</span>
-                                                        <code className="flex-1 font-mono text-xs font-bold text-white/70 tracking-wider truncate">
-                                                            {client.ownerToken || '—'}
-                                                        </code>
-                                                        {client.ownerToken && (
-                                                            <button
-                                                                onClick={() => copyToClipboard(client.ownerToken, `token-${clientId}`)}
-                                                                className="p-1 rounded hover:bg-white/10 transition-colors shrink-0"
-                                                                title="Copy token"
-                                                            >
-                                                                {copiedKey === `token-${clientId}`
-                                                                    ? <CheckCircle size={12} className="text-emerald-400" />
-                                                                    : <Copy size={12} className="text-white/30" />
-                                                                }
-                                                            </button>
-                                                        )}
+                                                        <span className="text-[9px] uppercase tracking-widest text-white/30 font-bold mr-1 shrink-0">Credential</span>
+                                                        <span className="flex-1 text-[10px] text-white/45 truncate">
+                                                            {client.hasLegacyCredential ? 'Legacy credential present — issue a new invite' : 'Not stored'}
+                                                        </span>
                                                     </div>
 
                                                     {/* Portal URL row */}
