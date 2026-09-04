@@ -301,6 +301,17 @@ export const api = {
         }
     },
 
+    getSeatOccupancy: async () => {
+        try {
+            const result = await request('/seats/occupied');
+            return Array.isArray(result?.seats) ? result.seats : [];
+        } catch (error) {
+            if (error?.status === 401 || error?.status === 428) return [];
+            console.error(error);
+            return [];
+        }
+    },
+
     getAllRSVPs: async (clientId) => {
         try {
             const query = clientId ? `?clientId=${encodeURIComponent(clientId)}` : '';
