@@ -73,6 +73,16 @@ const ClientSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 }, { _id: false });
 
+const AssetSchema = new mongoose.Schema({
+  _id: String,
+  clientId: { type: String, required: true, index: true },
+  uploadedBy: { type: String, ref: 'User', required: true, index: true },
+  mimeType: { type: String, enum: ['image/jpeg', 'image/png', 'image/webp'], required: true },
+  data: { type: Buffer, required: true },
+  size: { type: Number, required: true },
+  createdAt: { type: Date, default: Date.now, index: true }
+}, { _id: false });
+
 const ContentSchema = new mongoose.Schema({
   key: { type: String, required: true },
   clientId: { type: String, required: true, default: 'default_client' },
@@ -92,6 +102,7 @@ export const User = mongoose.model('User', UserSchema);
 export const Session = mongoose.model('Session', SessionSchema);
 export const InvitationToken = mongoose.model('InvitationToken', InvitationTokenSchema);
 export const RSVP = mongoose.model('RSVP', RSVPSchema);
+export const Asset = mongoose.model('Asset', AssetSchema);
 export const Content = mongoose.model('Content', ContentSchema);
 export const AllowedGuest = mongoose.model('AllowedGuest', AllowedGuestSchema);
 export const Client = mongoose.model('Client', ClientSchema);
