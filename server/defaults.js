@@ -92,3 +92,29 @@ export const defaultHomeData = {
     brideName: 'Bride',
     groomName: 'Groom'
 };
+
+
+export const defaultContactData = {
+    contactCards: [
+        { title: "Bride's Family", name: "Family Member", phone: "+91 98765 43210", email: "bride@example.com" },
+        { title: "Groom's Family", name: "Family Member", phone: "+91 98765 43211", email: "groom@example.com" }
+    ],
+    venueName: "Grand Palace Hall",
+    venueAddress: "123 Wedding Street, City, State",
+    venueMapsLink: "https://maps.google.com",
+    faqs: []
+};
+
+export const defaultClientSettings = {
+    enabledTabs: ['home', 'story', 'events', 'moments', 'gallery', 'rsvp', 'contact', 'family_tree'],
+    customTabs: [],
+    rooms: [
+        { id: 1, name: 'Deluxe Suite', type: 'King Bed', capacity: 2, price: '$200', available: 3 },
+        { id: 2, name: 'Garden View', type: 'Queen Bed', capacity: 2, price: '$150', available: 5 },
+        { id: 3, name: 'Family Room', type: '2 Queen Beds', capacity: 4, price: '$250', available: 2 }
+    ],
+    seatingConfig: [
+        { id: 'vip', name: 'VIP Section', type: 'sofa', rows: 3, colsPerSide: 9, price: 100 },
+        { id: 'general', name: 'General Section', type: 'chair', rows: 10, colsPerSide: 10, price: 50 }
+    ]
+};
